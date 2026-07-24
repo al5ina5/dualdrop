@@ -1,6 +1,6 @@
 # Desktop Build System
 
-Build scripts for packaging Blockdrop for Windows, macOS, and Linux.
+Build scripts for packaging Dualdrop for Windows, macOS, and Linux.
 
 ## Quick Start
 
@@ -33,17 +33,17 @@ After building, you'll find the following in `dist/desktop/`:
 
 ```
 dist/desktop/
-├── Blockdrop.love           # Universal LÖVE package
-├── Blockdrop-win64/         # Windows 64-bit
-│   ├── Blockdrop.exe        # Fused executable
+├── Dualdrop.love           # Universal LÖVE package
+├── Dualdrop-win64/         # Windows 64-bit
+│   ├── Dualdrop.exe        # Fused executable
 │   ├── *.dll             # Required libraries
-│   └── Run Blockdrop.bat    # Backup launcher
-├── Blockdrop-macos/
-│   └── Blockdrop.app        # macOS application bundle
-├── Blockdrop-macos.zip      # Ready for distribution
-└── Blockdrop-linux/
-    ├── Blockdrop.love       # Game file
-    ├── Blockdrop.sh         # Launcher script
+│   └── Run Dualdrop.bat    # Backup launcher
+├── Dualdrop-macos/
+│   └── Dualdrop.app        # macOS application bundle
+├── Dualdrop-macos.zip      # Ready for distribution
+└── Dualdrop-linux/
+    ├── Dualdrop.love       # Game file
+    ├── Dualdrop.sh         # Launcher script
     └── love.AppImage     # LÖVE runtime (if fusing unavailable)
 ```
 
@@ -51,7 +51,7 @@ dist/desktop/
 
 ### Windows
 
-The build creates a fused `.exe` by concatenating `love.exe` with the `.love` file. All required DLLs are included. Users can run `Blockdrop.exe` directly.
+The build creates a fused `.exe` by concatenating `love.exe` with the `.love` file. All required DLLs are included. Users can run `Dualdrop.exe` directly.
 
 ### macOS
 
@@ -60,14 +60,14 @@ Creates a proper `.app` bundle with the game embedded. The `Info.plist` is updat
 **Note:** The app is not signed or notarized. Users may need to right-click → Open on first launch, or you can sign it with your Apple Developer certificate:
 
 ```bash
-codesign --deep --force --sign "Developer ID Application: Your Name" dist/desktop/Blockdrop-macos/Blockdrop.app
+codesign --deep --force --sign "Developer ID Application: Your Name" dist/desktop/Dualdrop-macos/Dualdrop.app
 ```
 
 ### Linux
 
 The build includes:
-1. **Blockdrop.sh** - A launcher that tries system LÖVE, Flatpak, or bundled AppImage
-2. **Blockdrop.love** - The game file
+1. **Dualdrop.sh** - A launcher that tries system LÖVE, Flatpak, or bundled AppImage
+2. **Dualdrop.love** - The game file
 3. **love.AppImage** - Bundled LÖVE runtime (fallback)
 
 If you have FUSE and `appimagetool` installed, the build will create a single fused AppImage instead.

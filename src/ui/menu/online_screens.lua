@@ -8,7 +8,15 @@ function OnlineScreens.drawHost(menu, sw, sh, game)
     local Base = require('src.ui.menu.base')
     
     if menu.fonts then love.graphics.setFont(menu.fonts.medium) end
-    game:drawText("HOST ONLINE", 0, 120, sw, "center", {1, 1, 1})
+    game:drawText("HOST ONLINE", 0, 100, sw, "center", {1, 1, 1})
+
+    love.graphics.setFont(game.renderer.fonts.small)
+    local VersusRules = require('src.game.versus_rules')
+    local fmt = (game and game.matchFormat) or menu.matchFormat or "1v1"
+    local locals = (game and game.localPlayerCount) or menu.localPlayerCount or 1
+    local rules = VersusRules.label((game and game.versusRules) or menu.versusRules)
+    game:drawText(string.upper(fmt) .. " · " .. tostring(locals) .. " LOCAL · " .. rules, 0, 130, sw, "center", {0.7, 0.7, 0.7})
+    love.graphics.setFont(game.renderer.fonts.medium)
     
     -- Show error if any
     if menu.onlineError then
@@ -157,7 +165,8 @@ function OnlineScreens.drawBrowse(menu, sw, sh, game)
         game:drawText("No public games found", 0, y + 40, sw, "center", {0.6, 0.6, 0.6})
     else
         for i, room in ipairs(menu.onlineRooms) do
-            local roomText = string.format("Room %s (%d/%d)", 
+            local roomText = string.format("%s %s (%d/%d)",
+                string.upper(room.format or "1v1"),
                 room.code, room.players, room.maxPlayers)
             if menu.selectedIndex == i then
                 game:drawText("> " .. roomText, 0, y, sw, "center", {1, 1, 0.5})

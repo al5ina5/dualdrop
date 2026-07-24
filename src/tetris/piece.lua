@@ -167,6 +167,7 @@ end
 
 function Piece.hold(board)
     if not board.canHold then return false end
+    if board.holdLocked then return false end
     
     local oldHoldType = board.holdPieceType
     board.holdPieceType = board.currentPiece.type

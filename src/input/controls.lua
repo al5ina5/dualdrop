@@ -12,6 +12,8 @@ Controls.ACTIONS = {
     "rotate_cw",
     "rotate_ccw",
     "hold",
+    "fire_power",
+    "scout",
     "pause"
 }
 
@@ -25,6 +27,8 @@ Controls.defaults = {
         rotate_cw = "space",
         rotate_ccw = "x",
         hold = "lshift",
+        fire_power = "rshift",
+        scout = "tab",
         pause = "escape"
     },
     gamepad = {
@@ -35,6 +39,8 @@ Controls.defaults = {
         rotate_cw = "a",
         rotate_ccw = "b",
         hold = "leftshoulder",
+        fire_power = "rightshoulder",
+        scout = "back",
         pause = "start"
     }
 }
@@ -54,6 +60,8 @@ Controls.actionNames = {
     rotate_cw = "Rotate CW",
     rotate_ccw = "Rotate CCW",
     hold = "Hold Piece",
+    fire_power = "Fire Power-Up",
+    scout = "Scout Opponent",
     pause = "Pause"
 }
 
@@ -164,37 +172,56 @@ function Controls.getActionName(action)
     return Controls.actionNames[action] or action
 end
 
--- Check if an action is triggered
-function Controls.isActionPressed(action, Input)
-    -- Check keyboard
+-- device: nil/"any" = keyboard or any pad (menus/solo)
+--         "keyboard" = keyboard only
+--         number = that gamepad index (1-based)
+function Controls.isActionPressed(action, Input, device)
     local keyboardKey = Controls.current.keyboard[action]
-    if keyboardKey and Input:wasKeyPressed(keyboardKey) then
-        return true
-    end
-    
-    -- Check gamepad
     local gamepadButton = Controls.current.gamepad[action]
-    if gamepadButton and Input:wasButtonPressed(gamepadButton) then
-        return true
+
+    if device == nil or device == "any" then
+        if keyboardKey and Input:wasKeyPressed(keyboardKey) then
+            return true
+        end
+        if gamepadButton and Input:wasButtonPressed(gamepadButton) then
+            return true
+        end
+        return false
     end
-    
+
+    if device == "keyboard" then
+        return keyboardKey and Input:wasKeyPressed(keyboardKey) or false
+    end
+
+    if type(device) == "number" then
+        return gamepadButton and Input:wasButtonPressed(gamepadButton, device) or false
+    end
+
     return false
 end
 
--- Check if action should repeat (for movement)
-function Controls.shouldActionRepeat(action, Input)
-    -- Check keyboard
+function Controls.shouldActionRepeat(action, Input, device)
     local keyboardKey = Controls.current.keyboard[action]
-    if keyboardKey and Input:shouldRepeat(keyboardKey, false) then
-        return true
-    end
-    
-    -- Check gamepad
     local gamepadButton = Controls.current.gamepad[action]
-    if gamepadButton and Input:shouldRepeat(gamepadButton, true) then
-        return true
+
+    if device == nil or device == "any" then
+        if keyboardKey and Input:shouldRepeat(keyboardKey, false) then
+            return true
+        end
+        if gamepadButton and Input:shouldRepeat(gamepadButton, true) then
+            return true
+        end
+        return false
     end
-    
+
+    if device == "keyboard" then
+        return keyboardKey and Input:shouldRepeat(keyboardKey, false) or false
+    end
+
+    if type(device) == "number" then
+        return gamepadButton and Input:shouldRepeat(gamepadButton, true, device) or false
+    end
+
     return false
 end
 

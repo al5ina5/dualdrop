@@ -45,14 +45,14 @@ When prompted:
 - **Set up and deploy?** Yes
 - **Which scope?** Select your account
 - **Link to existing project?** No
-- **Project name?** `love-tetris-api` (or your choice)
+- **Project name?** `dualdrop-api` (or your choice)
 - **Which directory is your code?** `./` (the root)
 - **Want to override settings?** No
 
 Vercel will:
 - Deploy your API
 - Link your git repo for auto-deploys
-- Give you a production URL like: `https://love-tetris-api.vercel.app`
+- Give you a production URL like: `https://dualdrop-api.vercel.app`
 
 **Save this URL!** You'll need it in Step 6.
 
@@ -67,7 +67,7 @@ When prompted, paste your Ably API key from Step 1.
 ## Step 5: Create Vercel KV Database
 
 1. Go to [vercel.com/dashboard](https://vercel.com/dashboard)
-2. Click on your project (`love-tetris-api`)
+2. Click on your project (`dualdrop-api`)
 3. Go to the **Storage** tab
 4. Click **Create Database** → Select **KV**
 5. Name it: `tetris-rooms`
@@ -90,7 +90,7 @@ Edit `src/constants.lua` and update the API URL:
 
 ```lua
 -- Change this line to your Vercel URL from Step 3
-Constants.API_BASE_URL = "https://love-tetris-api.vercel.app"
+Constants.API_BASE_URL = "https://dualdrop-api.vercel.app"
 ```
 
 **Important:** Use your actual Vercel URL, not the example above!

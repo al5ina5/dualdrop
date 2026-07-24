@@ -1,0 +1,11 @@
+{
+  "name": "dualdrop",
+  "private": true,
+  "description": "Dualdrop — LÖVE game with ES-DE LAN deploy helpers",
+  "scripts": {
+    "build:esde": "./build/esde/build.sh",
+    "deploy:kiosk": "npm run build:esde && ./build/esde/deploy.sh kiosk.local",
+    "deploy:aio": "npm run build:esde && DEPLOY_JUMP=kiosk.local ./build/esde/deploy.sh aio.local",
+    "deploy:machines": "npm run build:esde && ./build/esde/deploy.sh kiosk.local && DEPLOY_JUMP=kiosk.local ./build/esde/deploy.sh aio.local"
+  }
+}

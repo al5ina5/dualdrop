@@ -100,18 +100,22 @@ function Discovery:createSocket()
 end
 
 -- Start advertising as a server
-function Discovery:startAdvertising(serverName, gamePort, maxPlayers)
+function Discovery:startAdvertising(serverName, gamePort, maxPlayers, format)
     print("Discovery: Attempting to start advertising...")
     self.localIP = self:fetchLocalIP()
     self:createSocket()
     if not self.socket then return end
     
     -- Bind to the discovery port to receive client queries
-    -- "*" or "0.0.0.0" allows receiving broadcasts on all interfaces
     local success, err = self.socket:setsockname("*", DISCOVERY_PORT)
     if not success then
-        print("Discovery: port " .. DISCOVERY_PORT .. " busy, falling back: " .. tostring(err))
-        self.socket:setsockname("*", 0)
+        print("Discovery: ERROR binding " .. DISCOVERY_PORT .. ": " .. tostring(err))
+        print("Discovery: advertising disabled (FIND GAME will not see this host)")
+        if self.socket then
+            self.socket:close()
+            self.socket = nil
+        end
+        return
     end
     
     local boundIp, boundPort = self.socket:getsockname()
@@ -119,13 +123,13 @@ function Discovery:startAdvertising(serverName, gamePort, maxPlayers)
     
     self.mode = "server"
     self.serverInfo = {
-        name = serverName or "Walking Together",
+        name = serverName or "Dualdrop",
         port = gamePort or 12345,
         players = 1,
         maxPlayers = maxPlayers or 4,
+        format = format or "1v1",
     }
     
-    -- Reset timer to broadcast immediately
     self.broadcastTimer = BROADCAST_INTERVAL
     print("Discovery: Advertising as '" .. self.serverInfo.name .. "' (IP: " .. self.localIP .. ")")
 end
@@ -189,11 +193,15 @@ end
 function Discovery:broadcastServer()
     if not self.serverInfo or not self.socket then return end
     
-    local msg = string.format("SERVER|%s|%d|%d|%d",
-        self.serverInfo.name,
+    -- "|" is the discovery delimiter — strip it from the display name
+    local safeName = tostring(self.serverInfo.name or "Host"):gsub("|", "/")
+    
+    local msg = string.format("SERVER|%s|%d|%d|%d|%s",
+        safeName,
         self.serverInfo.port,
         self.serverInfo.players,
-        self.serverInfo.maxPlayers
+        self.serverInfo.maxPlayers,
+        self.serverInfo.format or "1v1"
     )
     
     local addresses = self:getBroadcastAddresses()
@@ -203,7 +211,8 @@ function Discovery:broadcastServer()
 end
 
 -- Send a discovery request (as client looking for servers)
-function Discovery:sendDiscoveryRequest()
+-- Optional hintIps: extra unicast targets (e.g. lastIP, known peers)
+function Discovery:sendDiscoveryRequest(hintIps)
     if not self.socket then
         self:startListening()
     end
@@ -211,8 +220,33 @@ function Discovery:sendDiscoveryRequest()
     
     local msg = "DISCOVER"
     local addresses = self:getBroadcastAddresses()
+
+    -- Unicast hints help when Wi‑Fi broadcast is flaky
+    local function addHint(ip)
+        if not ip or ip == "" or ip == "unknown" then return end
+        -- strip port if present
+        ip = tostring(ip):match("^([^:]+)") or tostring(ip)
+        for _, existing in ipairs(addresses) do
+            if existing == ip then return end
+        end
+        table.insert(addresses, ip)
+    end
+
+    if type(hintIps) == "table" then
+        for _, ip in ipairs(hintIps) do addHint(ip) end
+    elseif type(hintIps) == "string" then
+        addHint(hintIps)
+    end
+
+    -- Try common Emusation hostnames when resolvable
+    if socket.dns and socket.dns.toip then
+        for _, host in ipairs({"aio.local", "kiosk.local", "aio", "kiosk"}) do
+            local ok, resolved = pcall(socket.dns.toip, host)
+            if ok and resolved then addHint(resolved) end
+        end
+    end
     
-    print("Discovery: Sending broadcast request to " .. #addresses .. " addresses...")
+    print("Discovery: Sending broadcast/unicast request to " .. #addresses .. " addresses...")
     for _, addr in ipairs(addresses) do
         self.socket:sendto(msg, addr, DISCOVERY_PORT)
     end
@@ -230,19 +264,25 @@ function Discovery:receiveMessages()
         
         if msgType == "DISCOVER" and self.serverInfo then
             -- Query received, reply directly
-            local response = string.format("SERVER|%s|%d|%d|%d",
-                self.serverInfo.name,
+            local safeName = tostring(self.serverInfo.name or "Host"):gsub("|", "/")
+            local response = string.format("SERVER|%s|%d|%d|%d|%s",
+                safeName,
                 self.serverInfo.port,
                 self.serverInfo.players,
-                self.serverInfo.maxPlayers
+                self.serverInfo.maxPlayers,
+                self.serverInfo.format or "1v1"
             )
             self.socket:sendto(response, ip, port)
             print("Discovery: Replied to DISCOVER from " .. ip)
             
         elseif msgType == "SERVER" then
-            -- Server advertisement received
-            local name, gamePort, players, maxPlayers = 
-                data:match("SERVER|([^|]+)|(%d+)|(%d+)|(%d+)")
+            -- Server advertisement received (format field optional for older hosts)
+            local name, gamePort, players, maxPlayers, format =
+                data:match("^SERVER|([^|]+)|(%d+)|(%d+)|(%d+)|([^|]+)$")
+            if not name then
+                name, gamePort, players, maxPlayers =
+                    data:match("^SERVER|([^|]+)|(%d+)|(%d+)|(%d+)$")
+            end
             
             if name and gamePort then
                 local sid = ip .. ":" .. gamePort
@@ -256,6 +296,7 @@ function Discovery:receiveMessages()
                     port = tonumber(gamePort),
                     players = tonumber(players) or 1,
                     maxPlayers = tonumber(maxPlayers) or 4,
+                    format = format or "1v1",
                     lastSeen = love.timer.getTime(),
                 }
             end

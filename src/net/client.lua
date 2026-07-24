@@ -1,5 +1,5 @@
 -- src/net/client.lua
--- Network client for Blockdrop
+-- Network client for Dualdrop
 -- Connects to a server and syncs board/piece updates
 
 local enet = require("enet")
@@ -49,23 +49,34 @@ function Client:disconnect()
     print("Disconnected from server")
 end
 
-function Client:sendBoardSync(gridData)
+function Client:sendBoardSync(gridData, playerId)
     if not self.connected or not self.server then return end
-    self.server:send(Protocol.encode(Protocol.MSG.BOARD_SYNC, self.playerId or "?", gridData), 0, "reliable")
+    self.server:send(Protocol.encode(Protocol.MSG.BOARD_SYNC, playerId or self.playerId or "?", gridData), 0, "reliable")
 end
 
-function Client:sendPieceMove(type, x, y, rot)
+function Client:sendPieceMove(type, x, y, rot, playerId)
     if not self.connected or not self.server then return end
-    self.server:send(Protocol.encode(Protocol.MSG.PIECE_MOVE, self.playerId or "?", type, x, y, rot), 0, "unreliable")
+    self.server:send(Protocol.encode(Protocol.MSG.PIECE_MOVE, playerId or self.playerId or "?", type, x, y, rot), 0, "unreliable")
 end
 
 function Client:sendMessage(msg)
     if not self.connected or not self.server then return end
+    local id = msg.id or self.playerId or "?"
     local data
     if msg.type == Protocol.MSG.GARBAGE then
-        data = Protocol.encode(msg.type, self.playerId or "?", msg.lines or 0)
+        if msg.target then
+            data = Protocol.encode(msg.type, id, msg.lines or 0, msg.target)
+        else
+            data = Protocol.encode(msg.type, id, msg.lines or 0)
+        end
+    elseif msg.type == Protocol.MSG.EFFECT then
+        data = Protocol.encode(msg.type, id, msg.effect or "fog", msg.target or "", msg.duration or 5)
+    elseif msg.type == Protocol.MSG.RACE_WIN then
+        data = Protocol.encode(msg.type, id)
+    elseif msg.type == Protocol.MSG.LOBBY then
+        data = Protocol.encode(msg.type, id, msg.data or "")
     else
-        data = Protocol.encode(msg.type, self.playerId or "?", msg.data or "")
+        data = Protocol.encode(msg.type, id, msg.data or "")
     end
     self.server:send(data, 0, "reliable")
 end

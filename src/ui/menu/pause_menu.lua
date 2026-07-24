@@ -63,7 +63,10 @@ function PauseMenu.select(menu)
     elseif menu.selectedIndex == 3 then
         -- Main Menu
         if menu.onMainMenu then menu.onMainMenu() end
-        Base.show(menu, Base.STATE.MAIN)
+        -- onMainMenu already shows MAIN; keep this as a safety net
+        if not menu:isVisible() or menu.state == Base.STATE.PAUSE then
+            Base.show(menu, Base.STATE.MAIN)
+        end
     end
     return true
 end

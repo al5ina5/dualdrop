@@ -4,6 +4,7 @@
 local Controls = require('src.input.controls')
 local Input = require('src.input.input_state')
 local StateManager = require('src.game.state_manager')
+local LocalSession = require('src.game.local_session')
 
 local InputHandler = {}
 
@@ -15,6 +16,7 @@ function InputHandler.keypressed(key, game)
     
     -- Update input state first so Controls can check it
     Input:keyPressed(key)
+    LocalSession.noteKeyboardActivity(game)
     
     -- Check for game over dismissal (any key dismisses after delay)
     if game.state == "over" and not game.menu:isVisible() then
@@ -46,9 +48,21 @@ function InputHandler.keyreleased(key, game)
     Input:keyReleased(key)
 end
 
-function InputHandler.gamepadpressed(button, game)
+function InputHandler.gamepadpressed(button, game, joystick)
     -- Update input state first so Controls can check it
-    Input:gamepadPressed(button)
+    Input:gamepadPressed(button, joystick)
+
+    local padIndex = LocalSession.resolvePadIndex(joystick)
+
+    -- Unused pad Start = seamless P2 join (before pause / menu select).
+    -- Must run before notePadActivity so Start itself doesn't latch as P1.
+    if button == "start" and padIndex and not LocalSession.isAssignedPad(game, padIndex) then
+        if LocalSession.tryJoinPad(game, padIndex) then
+            return
+        end
+    elseif padIndex then
+        LocalSession.notePadActivity(game, padIndex)
+    end
     
     -- Check for game over dismissal (any button dismisses after delay)
     if game.state == "over" and not game.menu:isVisible() then
@@ -73,8 +87,8 @@ function InputHandler.gamepadpressed(button, game)
     end
 end
 
-function InputHandler.gamepadreleased(button, game)
-    Input:gamepadReleased(button)
+function InputHandler.gamepadreleased(button, game, joystick)
+    Input:gamepadReleased(button, joystick)
 end
 
 function InputHandler.handlePause(game)
@@ -84,12 +98,18 @@ function InputHandler.handlePause(game)
         else
             game.menu:show(game.menu.STATE.PAUSE)
         end
+    elseif game.state == "disconnected_pause" then
+        -- Ignore pause during disconnect interstitial
+        return
     else
-        -- In WAITING or other states
-        if game.menu:isVisible() then
-            game.menu:hide()
-        else
-            game.menu:show()
+        -- WAITING: opening the menu means leaving the session (never hide into a broken board)
+        if not game.menu:isVisible() then
+            if game.network then
+                local ConnectionManager = require('src.game.connection_manager')
+                ConnectionManager.handleSessionAbandoned(game, "user_left")
+            else
+                game.menu:show(game.menu.STATE.MAIN)
+            end
         end
     end
 end

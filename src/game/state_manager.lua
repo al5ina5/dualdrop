@@ -39,16 +39,25 @@ function StateManager.update(state, dt, game)
 end
 
 function StateManager.updateWaiting(state, game)
-    -- If we have an opponent, start countdown and hide menu
-    local remoteCount = game:countRemotePlayers()
-    if game.isHost and remoteCount > 0 then
-        print("StateManager: Host has " .. remoteCount .. " players, starting countdown")
-        game.menu:hide()
-        StateManager.startCountdown(state, game)
+    -- Never auto-start a match while the player is browsing menus
+    if game.menu and game.menu:isVisible() then
+        local Base = require('src.ui.menu.base')
+        local st = game.menu.state
+        if st ~= Base.STATE.WAITING and st ~= Base.STATE.ONLINE_WAITING
+            and st ~= Base.STATE.CONNECTING and st ~= Base.STATE.HOST
+            and st ~= Base.STATE.LOBBY then
+            return
+        end
     end
+
+    -- Host starts manually from the lobby once a guest has joined (no auto-start)
 end
 
 function StateManager.updateCountdown(state, dt, game)
+    local TeamMatch = require('src.game.team_match')
+    TeamMatch.tryToggleEnemyOverlay(game)
+    TeamMatch.updateEnemyWatch(game, dt)
+
     local oldTime = math.ceil(state.countdownTimer)
     state.countdownTimer = state.countdownTimer - dt
     local newTime = math.ceil(state.countdownTimer)
@@ -64,6 +73,7 @@ function StateManager.updateCountdown(state, dt, game)
     if state.countdownTimer <= 0 then
         state.current = StateManager.STATES.PLAYING
         game.sprintTime = 0
+        game.matchTime = 0
         Audio:playRandomGameMusic()
     end
 end
@@ -106,7 +116,9 @@ function StateManager.updatePlaying(state, dt, game)
             StateManager.enterGameOver(state, game)
             Audio:stopMusic()
             Audio:play('gameOver')
-            Scores.addMatch("SPRINT", game.localBoard.score, game.sprintTime, "DEATH")
+            Scores.addMatch("SPRINT", game.localBoard.score, game.sprintTime, "DEATH", {
+                lines = game.localBoard.linesCleared
+            })
             return
         end
         
@@ -115,26 +127,34 @@ function StateManager.updatePlaying(state, dt, game)
             StateManager.enterGameOver(state, game)
             Audio:stopMusic()
             Audio:play('secret')
-            Scores.addMatch("SPRINT", game.localBoard.score, game.sprintTime, "FINISHED")
+            Scores.addMatch("SPRINT", game.localBoard.score, game.sprintTime, "FINISHED", {
+                lines = game.localBoard.linesCleared
+            })
             return
         end
     end
 
-    -- Check if anyone lost (Versus mode)
-    local anyGameOver = game.localBoard.gameOver
-    for id, board in pairs(game.remoteBoards) do
-        if board.gameOver then
-            anyGameOver = true
-            break
-        end
-    end
+    -- Versus mode: track match time and check for game over
+    if game.gameMode == "VERSUS" then
+        game.matchTime = (game.matchTime or 0) + dt
+        local TeamMatch = require('src.game.team_match')
+        TeamMatch.updateEnemyWatch(game, dt)
 
-    if anyGameOver and game.gameMode == "VERSUS" then
-        StateManager.enterGameOver(state, game)
-        Audio:stopMusic()
-        
-        local result = game.localBoard.gameOver and "LOSS" or "WIN"
-        Scores.addMatch("VERSUS", game.localBoard.score, 0, result)
+        -- Don't resolve win/loss until play has actually begun
+        if (game.matchTime or 0) < 0.25 then
+            return
+        end
+
+        local VersusRules = require('src.game.versus_rules')
+        local result = VersusRules.checkCheeseWin(game) or TeamMatch.versusResult(game)
+
+        if result then
+            StateManager.enterGameOver(state, game, result)
+            Audio:stopMusic()
+            Scores.addMatch("VERSUS", game.localBoard and game.localBoard.score or 0, game.matchTime or 0, result, {
+                lines = game.localBoard and game.localBoard.linesCleared or 0
+            })
+        end
     end
 end
 
@@ -169,30 +189,47 @@ function StateManager.startCountdown(state, game)
     state.current = StateManager.STATES.COUNTDOWN
     state.countdownTimer = 3.0
     Audio:play('beep')
-    
-    -- Always create a fresh board for the new game
-    local TetrisBoard = require('src.tetris.board')
-    game.localBoard = TetrisBoard:new(10, 20)
+
+    local ConnectionManager = require('src.game.connection_manager')
+    -- Match is no longer joinable — drop from LAN lobby lists
+    ConnectionManager.stopLanAdvertising(game)
+    ConnectionManager.prepareMatchStart(game)
+
     game.sentGameOver = false
     game.lastSentScore = 0
     game.lastSentMove = {x=0, y=0, rot=0, type=""}
     game.sprintTime = 0
+    game.matchTime = 0
+    game.matchResult = nil
+    local TeamMatch = require('src.game.team_match')
+    TeamMatch.resetEnemyWatch(game)
     
-    -- Initialize mode-specific state
     if game.gameMode == "MARATHON" then
         local MarathonState = require('src.game.marathon_state')
         game.marathonState = MarathonState.create(1)
     end
     
-    if game.network then
+    if game.network and game.isHost then
         local Protocol = require('src.net.protocol')
         game.network:sendMessage({type = Protocol.MSG.START_COUNTDOWN})
     end
+
+    -- Push initial boards/pieces immediately (cheese layout, spawn positions)
+    if game.network then
+        local NetworkHandler = require('src.game.network_handler')
+        NetworkHandler.syncLocalState(game)
+    end
 end
 
-function StateManager.enterGameOver(state, game)
+function StateManager.enterGameOver(state, game, result)
     state.current = StateManager.STATES.GAME_OVER
     state.gameOverTimer = 1.0  -- Brief delay before allowing dismissal
+    if result then
+        game.matchResult = result
+    elseif game.matchResult == nil and game.gameMode == "VERSUS" then
+        local TeamMatch = require('src.game.team_match')
+        game.matchResult = TeamMatch.versusResult(game)
+    end
 end
 
 function StateManager.enterDisconnectedPause(state, game, reason)
@@ -207,6 +244,9 @@ function StateManager.resumeAsSinglePlayer(state, game)
     print("StateManager: Resuming as single player")
     state.current = StateManager.STATES.PLAYING
     state.disconnectReason = nil
+
+    local ConnectionManager = require('src.game.connection_manager')
+    ConnectionManager.stopLanAdvertising(game)
     
     -- Clean up network connections
     if game.network then
@@ -225,13 +265,20 @@ function StateManager.resumeAsSinglePlayer(state, game)
     -- Clear remote boards and switch to single player mode
     game.remoteBoards = {}
     game.isHost = true  -- Mark as host so game over/reset works correctly
+    game.playerId = nil
     
     Audio:resumeMusic()
 end
 
 function StateManager.reset(state, game)
+    local TeamMatch = require('src.game.team_match')
     local TetrisBoard = require('src.tetris.board')
-    game.localBoard = TetrisBoard:new(10, 20)
+
+    if game.ownedSeats and #game.ownedSeats > 0 then
+        TeamMatch.refreshLocalBoards(game)
+    else
+        game.localBoard = TetrisBoard:new(10, 20)
+    end
     
     for id, board in pairs(game.remoteBoards) do
         game.remoteBoards[id] = TetrisBoard:new(10, 20)
@@ -241,11 +288,45 @@ function StateManager.reset(state, game)
     game.sentGameOver = false
     game.lastSentScore = 0
     game.lastSentMove = {x=0, y=0, rot=0, type=""}
+    game.matchResult = nil
     
+    if not game.network then
+        game.remoteBoards = {}
+        game.isHost = false
+        game.playerId = nil
+        game.lobby = nil
+        game.ownedSeats = nil
+        game.localPlayers = nil
+        game.localVersus = false
+        state.current = StateManager.STATES.WAITING
+        if game.menu then
+            local Base = require('src.ui.menu.base')
+            game.menu:show(Base.STATE.MAIN)
+        end
+        Audio:playMusic('menu')
+        return
+    end
+
     if game.isHost then
-        StateManager.startCountdown(state, game)
+        -- Return to lobby for rematch instead of instant restart for team formats
+        if game.matchFormat and game.matchFormat ~= "1v1" then
+            state.current = StateManager.STATES.WAITING
+            local ConnectionManager = require('src.game.connection_manager')
+            ConnectionManager.startLanAdvertising(game)
+            if game.menu then
+                local Base = require('src.ui.menu.base')
+                game.menu:show(Base.STATE.LOBBY)
+            end
+            Audio:playMusic('menu')
+        else
+            StateManager.startCountdown(state, game)
+        end
     else
         state.current = StateManager.STATES.WAITING
+        if game.menu then
+            local Base = require('src.ui.menu.base')
+            game.menu:show(Base.STATE.LOBBY)
+        end
         Audio:playMusic('menu')
     end
 end

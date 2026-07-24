@@ -1,16 +1,21 @@
 -- src/ui/components.lua
 -- Reusable UI components for menus
 
+local Theme = require('src.ui.theme')
+
 local Components = {}
 
 -- Component: Confirmation dialog
 function Components.drawDialog(game, sw, sh, title, message, options, selectedOption)
-    -- Dim background
-    love.graphics.setColor(0, 0, 0, 0.8)
-    love.graphics.rectangle("fill", sw/2 - 240, sh/2 - 120, 480, 240)
-    
-    -- Border
-    love.graphics.setColor(0.3, 0.3, 0.3)
+    if Theme.isLight() then
+        love.graphics.setColor(1, 1, 1, 0.92)
+        love.graphics.rectangle("fill", sw/2 - 240, sh/2 - 120, 480, 240)
+        love.graphics.setColor(0.45, 0.45, 0.48)
+    else
+        love.graphics.setColor(0, 0, 0, 0.8)
+        love.graphics.rectangle("fill", sw/2 - 240, sh/2 - 120, 480, 240)
+        love.graphics.setColor(0.3, 0.3, 0.3)
+    end
     love.graphics.rectangle("line", sw/2 - 240, sh/2 - 120, 480, 240)
     
     -- Title

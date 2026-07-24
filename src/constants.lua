@@ -9,7 +9,7 @@ Constants.SH = 480
 Constants.GRID_WIDTH = 10
 Constants.GRID_HEIGHT = 20
 Constants.BLOCK_SIZE_W = 32
-Constants.BLOCK_SIZE_H = 22
+Constants.BLOCK_SIZE_H = 24 -- 20 rows × 24 = 480 (fills canvas height)
 
 -- Custom color palette for game pieces
 Constants.PIECES = {

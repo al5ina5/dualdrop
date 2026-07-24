@@ -32,9 +32,22 @@ function OnlineClient.isAvailable()
     return hasLuaSec or hasSimpleHTTP
 end
 
+-- Probe matchmaking API (cached by caller). False when HTTPS missing or server down.
+function OnlineClient.isServerReachable()
+    if not OnlineClient.isAvailable() then
+        return false
+    end
+    local client, err = OnlineClient:new()
+    if not client then
+        return false
+    end
+    local success = client:httpRequest("GET", client.apiUrl .. "/api/list-rooms")
+    return success == true
+end
+
 function OnlineClient:new()
     if not OnlineClient.isAvailable() then
-        error("Online multiplayer requires HTTPS support (install lua-sec or ensure curl/wget is available)")
+        return nil, "Online multiplayer requires HTTPS support (install lua-sec or ensure curl/wget is available)"
     end
     
     local self = setmetatable({}, OnlineClient)
@@ -79,17 +92,31 @@ function OnlineClient:httpRequest(method, url, body)
 end
 
 -- Matchmaking API
-function OnlineClient:createRoom(isPublic)
-    local success, response = self:httpRequest("POST", self.apiUrl .. "/api/create-room", json.encode({ isPublic = isPublic or false }))
+function OnlineClient:createRoom(isPublic, opts)
+    opts = opts or {}
+    local body = json.encode({
+        isPublic = isPublic or false,
+        format = opts.format or "1v1",
+        maxSeats = opts.maxSeats,
+        seatsUsed = opts.seatsUsed or 1,
+    })
+    local success, response = self:httpRequest("POST", self.apiUrl .. "/api/create-room", body)
     if not success then return false end
     self.roomCode = response.roomCode
+    if response.format then self.roomFormat = response.format end
     return true, self.roomCode
 end
 
-function OnlineClient:joinRoom(roomCode)
-    local success = self:httpRequest("POST", self.apiUrl .. "/api/join-room", json.encode({ roomCode = roomCode:upper() }))
-    if not success then return false end
+function OnlineClient:joinRoom(roomCode, seats)
+    local success, response = self:httpRequest("POST", self.apiUrl .. "/api/join-room", json.encode({
+        roomCode = roomCode:upper(),
+        seats = seats or 1,
+    }))
+    if not success then return false, response end
     self.roomCode = roomCode:upper()
+    if type(response) == "table" and response.format then
+        self.roomFormat = response.format
+    end
     return true
 end
 
@@ -99,9 +126,11 @@ function OnlineClient:listRooms()
     return response.rooms or {}
 end
 
-function OnlineClient:heartbeat()
+function OnlineClient:heartbeat(players)
     if not self.roomCode then return false end
-    return self:httpRequest("POST", self.apiUrl .. "/api/heartbeat", json.encode({ roomCode = self.roomCode }))
+    local body = { roomCode = self.roomCode }
+    if players ~= nil then body.players = players end
+    return self:httpRequest("POST", self.apiUrl .. "/api/heartbeat", json.encode(body))
 end
 
 function OnlineClient:disconnect()

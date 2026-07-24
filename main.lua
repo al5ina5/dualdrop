@@ -8,7 +8,7 @@ function love.load()
     love.graphics.setDefaultFilter("nearest", "nearest")
 
     -- Set window title
-    love.window.setTitle("Blockdrop")
+    love.window.setTitle("Dualdrop")
 
     -- Initialize game
     Game:load()
@@ -33,11 +33,11 @@ function love.keyreleased(key)
 end
 
 function love.gamepadpressed(joystick, button)
-    Game:gamepadpressed(button)
+    Game:gamepadpressed(button, joystick)
 end
 
 function love.gamepadreleased(joystick, button)
-    Game:gamepadreleased(button)
+    Game:gamepadreleased(button, joystick)
 end
 
 function love.textinput(text)

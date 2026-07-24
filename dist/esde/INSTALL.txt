@@ -1,0 +1,17 @@
+Dualdrop — minimal ES-DE / LAN install
+=======================================
+
+Files to copy (and nothing else on the host):
+
+  ~/Games/Dualdrop/          <- contents of dist/esde/Dualdrop/
+  ~/ROMs/ports/Dualdrop.sh   <- dist/esde/Dualdrop.sh
+
+Then refresh ES-DE (or restart) and launch Ports > Dualdrop.
+
+LAN: one machine CREATE GAME, the other FIND GAME (or JOIN BY IP).
+Game port UDP/TCP 12345, discovery UDP 12346.
+
+Deploy from the repo (game files only — does not overwrite Ports launcher):
+  npm run deploy:machines
+  npm run deploy:kiosk
+  npm run deploy:aio

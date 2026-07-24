@@ -1,6 +1,6 @@
 #!/bin/bash
 # build/portmaster/build.sh
-# Builds PortMaster package for Blockdrop (SpruceOS, muOS, etc.)
+# Builds PortMaster package for Dualdrop (SpruceOS, muOS, etc.)
 #
 # Usage: ./build/portmaster/build.sh
 # Output: dist/portmaster/
@@ -9,7 +9,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-GAME_NAME="Blockdrop"
+GAME_NAME="Dualdrop"
 BUILD_DIR="$PROJECT_ROOT/dist/portmaster"
 
 cd "$PROJECT_ROOT"
@@ -44,7 +44,7 @@ zip -9 -r "$BUILD_DIR/$GAME_NAME/$GAME_NAME.love" . \
 echo "[3/6] Creating launcher script..."
 cat > "$BUILD_DIR/$GAME_NAME.sh" << 'LAUNCHER_EOF'
 #!/bin/bash
-# PortMaster Launcher for Blockdrop
+# PortMaster Launcher for Dualdrop
 
 XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 
@@ -64,13 +64,13 @@ get_controls
 [ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
 
 # Dynamic path resolution - remove trailing slashes, handle leading slash
-GAMEDIR="${directory%/}/Blockdrop"
+GAMEDIR="${directory%/}/Dualdrop"
 # Ensure path starts with /
 [[ "$GAMEDIR" != /* ]] && GAMEDIR="/$GAMEDIR"
 
 # If not found in root, check in /ports/ subfolder
 if [ ! -d "$GAMEDIR" ]; then
-    GAMEDIR="${directory%/}/ports/Blockdrop"
+    GAMEDIR="${directory%/}/ports/Dualdrop"
     [[ "$GAMEDIR" != /* ]] && GAMEDIR="/$GAMEDIR"
 fi
 
@@ -84,7 +84,7 @@ mkdir -p "$XDG_CONFIG_HOME"
 
 # Redirect all output to log.txt for debugging
 exec > >(tee "$GAMEDIR/log.txt") 2>&1
-echo "--- Starting Blockdrop ---"
+echo "--- Starting Dualdrop ---"
 echo "Date: $(date)"
 echo "GAMEDIR: $GAMEDIR"
 echo "Device: $DEVICE_NAME ($DEVICE_ARCH)"
@@ -121,9 +121,9 @@ echo "Using LÖVE binary: $LOVE_BIN"
 # We use the basename of LOVE_BIN for gptokeyb to watch
 LOVE_NAME=$(basename "$LOVE_BIN")
 
-$GPTOKEYB "$LOVE_NAME" -c "$GAMEDIR/Blockdrop.gptk" &
+$GPTOKEYB "$LOVE_NAME" -c "$GAMEDIR/Dualdrop.gptk" &
 pm_platform_helper "$LOVE_BIN"
-"$LOVE_BIN" "$GAMEDIR/Blockdrop.love"
+"$LOVE_BIN" "$GAMEDIR/Dualdrop.love"
 
 # Cleanup after exit
 killall gptokeyb
@@ -166,7 +166,7 @@ cat > "$BUILD_DIR/$GAME_NAME/port.json" << EOF
     "items": ["$GAME_NAME.sh"],
     "items_opt": [],
     "attr": {
-        "title": "Blockdrop",
+        "title": "Dualdrop",
         "desc": "Multiplayer falling block puzzle game.",
         "inst": "D-Pad to move. X/Y for Menu. Host on one device, Find on another!",
         "genres": ["multiplayer", "puzzle"],
@@ -177,27 +177,27 @@ cat > "$BUILD_DIR/$GAME_NAME/port.json" << EOF
 EOF
 
 # 6. Create updater script (next to launcher, not inside game folder)
-echo "[6/6] Creating BlockdropUpdater.sh..."
-cat > "$BUILD_DIR/BlockdropUpdater.sh" << 'UPDATE_EOF'
+echo "[6/6] Creating DualdropUpdater.sh..."
+cat > "$BUILD_DIR/DualdropUpdater.sh" << 'UPDATE_EOF'
 #!/bin/bash
-# BlockdropUpdater.sh - Updates Blockdrop from GitHub
-# Place this next to Blockdrop.sh in your ports folder
+# DualdropUpdater.sh - Updates Dualdrop from GitHub
+# Place this next to Dualdrop.sh in your ports folder
 #
-# Usage: Run from PortMaster menu or: ./BlockdropUpdater.sh
+# Usage: Run from PortMaster menu or: ./DualdropUpdater.sh
 
-REPO="al5ina5/love-tetris"
+REPO="al5ina5/dualdrop"
 BRANCH="main"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GAME_DIR="$SCRIPT_DIR/Blockdrop"
+GAME_DIR="$SCRIPT_DIR/Dualdrop"
 
-echo "=== Blockdrop Updater ==="
+echo "=== Dualdrop Updater ==="
 echo "Game directory: $GAME_DIR"
 echo ""
 
 # Check game folder exists
 if [ ! -d "$GAME_DIR" ]; then
-    echo "ERROR: Blockdrop folder not found at $GAME_DIR"
-    echo "Make sure BlockdropUpdater.sh is in the same folder as Blockdrop/"
+    echo "ERROR: Dualdrop folder not found at $GAME_DIR"
+    echo "Make sure DualdropUpdater.sh is in the same folder as Dualdrop/"
     exit 1
 fi
 
@@ -243,32 +243,32 @@ echo "Downloading updates..."
 echo ""
 
 # Backup current .love file
-if [ -f "$GAME_DIR/Blockdrop.love" ]; then
-    cp "$GAME_DIR/Blockdrop.love" "$GAME_DIR/Blockdrop.love.backup"
-    echo "Backed up current Blockdrop.love"
+if [ -f "$GAME_DIR/Dualdrop.love" ]; then
+    cp "$GAME_DIR/Dualdrop.love" "$GAME_DIR/Dualdrop.love.backup"
+    echo "Backed up current Dualdrop.love"
 fi
 
 # Download new files
-download_file "$BASE_URL/Blockdrop/Blockdrop.love" "$GAME_DIR/Blockdrop.love"
+download_file "$BASE_URL/Dualdrop/Dualdrop.love" "$GAME_DIR/Dualdrop.love"
 LOVE_OK=$?
 
-download_file "$BASE_URL/Blockdrop/Blockdrop.gptk" "$GAME_DIR/Blockdrop.gptk"
+download_file "$BASE_URL/Dualdrop/Dualdrop.gptk" "$GAME_DIR/Dualdrop.gptk"
 GPTK_OK=$?
 
-download_file "$BASE_URL/Blockdrop/port.json" "$GAME_DIR/port.json"
+download_file "$BASE_URL/Dualdrop/port.json" "$GAME_DIR/port.json"
 JSON_OK=$?
 
 echo ""
 
 if [ $LOVE_OK -eq 0 ]; then
     # Remove backup on success
-    rm -f "$GAME_DIR/Blockdrop.love.backup"
+    rm -f "$GAME_DIR/Dualdrop.love.backup"
     echo "=== Update complete! ==="
     echo "Restart the game to use the new version."
 else
     # Restore backup on failure
-    if [ -f "$GAME_DIR/Blockdrop.love.backup" ]; then
-        mv "$GAME_DIR/Blockdrop.love.backup" "$GAME_DIR/Blockdrop.love"
+    if [ -f "$GAME_DIR/Dualdrop.love.backup" ]; then
+        mv "$GAME_DIR/Dualdrop.love.backup" "$GAME_DIR/Dualdrop.love"
         echo "Update failed - restored previous version."
     fi
     echo "=== Update FAILED ==="
@@ -276,17 +276,17 @@ else
 fi
 UPDATE_EOF
 
-chmod +x "$BUILD_DIR/BlockdropUpdater.sh"
+chmod +x "$BUILD_DIR/DualdropUpdater.sh"
 
 echo ""
 echo "=== BUILD COMPLETE ==="
 echo ""
 echo "Output files:"
-echo "  $BUILD_DIR/Blockdrop.sh"
-echo "  $BUILD_DIR/BlockdropUpdater.sh"
-echo "  $BUILD_DIR/Blockdrop/"
-echo "    - Blockdrop.love"
-echo "    - Blockdrop.gptk"
+echo "  $BUILD_DIR/Dualdrop.sh"
+echo "  $BUILD_DIR/DualdropUpdater.sh"
+echo "  $BUILD_DIR/Dualdrop/"
+echo "    - Dualdrop.love"
+echo "    - Dualdrop.gptk"
 echo "    - port.json"
 echo ""
 echo "To deploy, run: ./build/portmaster/deploy.sh"

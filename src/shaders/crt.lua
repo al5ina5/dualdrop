@@ -1,16 +1,15 @@
 -- src/shaders/crt.lua
--- Professional CRT Shader for LÖVE
--- Features: Curvature, Scanlines, Chromatic Aberration, Vignette
+-- CRT Shader for LÖVE — curvature, soft scanlines, chromatic aberration (no vignette)
 
 return [[
     extern vec2 inputRes;
     extern float time;
 
-    // Configuration
-    const float curvature = 3.0;
-    const float scanlineIntensity = 0.25;
-    const float vignetteIntensity = 0.15;
-    const float chromaticAberration = 0.0015;
+    // Configuration — bright CRT look (no vignette)
+    const float curvature = 5.0;
+    const float scanlineIntensity = 0.12;
+    const float chromaticAberration = 0.001;
+    const float brightness = 1.12;
 
     vec2 curve(vec2 uv) {
         uv = uv * 2.0 - 1.0;
@@ -35,20 +34,14 @@ return [[
         tex.b = Texel(texture, uv - vec2(chromaticAberration, 0.0)).b;
         tex.a = 1.0;
 
-        // Scanlines
+        // Soft scanlines
         float scanline = sin(uv.y * inputRes.y * 3.14159 * 2.0);
         scanline = (scanline + 1.0) * 0.5;
         scanline = mix(1.0, scanline, scanlineIntensity);
         tex.rgb *= scanline;
 
-        // Vignette
-        float vignette = uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
-        vignette = pow(vignette * 15.0, vignetteIntensity);
-        tex.rgb *= vignette;
-
-        // Subtle flicker
-        float flicker = 1.0 + 0.005 * sin(time * 60.0);
-        tex.rgb *= flicker;
+        // Lift overall brightness (replaces old vignette darkening)
+        tex.rgb *= brightness;
 
         return tex * color;
     }

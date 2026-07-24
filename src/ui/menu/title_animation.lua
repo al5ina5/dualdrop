@@ -143,6 +143,10 @@ end
 -- Draw the animated title
 function TitleAnimation.draw(state, centerX, centerY, font, game, shadowColor)
     if not state.initialized or #state.letters == 0 then return end
+
+    local Theme = require('src.ui.theme')
+    local letterColor = Theme.adaptColor({1, 1, 1, 1})
+    shadowColor = shadowColor or (Theme.isLight() and {0.75, 0.75, 0.72, 1} or {0.3, 0.3, 0.3, 1})
     
     love.graphics.setFont(font)
     
@@ -173,7 +177,7 @@ function TitleAnimation.draw(state, centerX, centerY, font, game, shadowColor)
         end
         
         -- Draw letter
-        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setColor(letterColor[1], letterColor[2], letterColor[3], letterColor[4] or 1)
         love.graphics.print(letter.char, 0, 0, 0, 1, 1, letter.width / 2, font:getHeight() / 2)
         
         love.graphics.pop()

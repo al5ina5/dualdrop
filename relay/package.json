@@ -1,7 +1,7 @@
 {
-  "name": "blockdrop-relay",
+  "name": "dualdrop-relay",
   "version": "1.0.0",
-  "description": "Unified Matchmaker and TCP Relay for Blockdrop",
+  "description": "Unified Matchmaker and TCP Relay for Dualdrop",
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",

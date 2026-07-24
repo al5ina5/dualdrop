@@ -56,36 +56,36 @@ function NetworkAdapter:isConnected()
 end
 
 -- Send board sync
-function NetworkAdapter:sendBoardSync(gridData)
+function NetworkAdapter:sendBoardSync(gridData, playerId)
     if not self:isConnected() then return false end
     
     if self.type == NetworkAdapter.TYPE.LAN then
         if self.server then
-            self.server:sendBoardSync(gridData)
+            self.server:sendBoardSync(gridData, playerId)
         elseif self.client then
-            self.client:sendBoardSync(gridData)
+            self.client:sendBoardSync(gridData, playerId)
         end
     else
         if self.client then
-            self.client:sendBoardSync(gridData)
+            self.client:sendBoardSync(gridData, playerId)
         end
     end
     return true
 end
 
 -- Send piece move
-function NetworkAdapter:sendPieceMove(type, x, y, rot)
+function NetworkAdapter:sendPieceMove(type, x, y, rot, playerId)
     if not self:isConnected() then return false end
     
     if self.type == NetworkAdapter.TYPE.LAN then
         if self.server then
-            self.server:sendPieceMove(type, x, y, rot)
+            self.server:sendPieceMove(type, x, y, rot, playerId)
         elseif self.client then
-            self.client:sendPieceMove(type, x, y, rot)
+            self.client:sendPieceMove(type, x, y, rot, playerId)
         end
     else
         if self.client then
-            self.client:sendPieceMove(type, x, y, rot)
+            self.client:sendPieceMove(type, x, y, rot, playerId)
         end
     end
     return true

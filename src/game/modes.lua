@@ -6,9 +6,9 @@ local Modes = {
         id = "VERSUS",
         name = "Versus",
         multiplayer = true,
-        trackTime = false,
-        endCondition = "opponent_loss",
-        statsToTrack = {"score", "lines"}
+        trackTime = true,
+        endCondition = "opponent_loss", -- or team wipe when matchFormat is 2v1/2v2
+        statsToTrack = {"score", "lines", "time"}
     },
     SPRINT = {
         id = "SPRINT",

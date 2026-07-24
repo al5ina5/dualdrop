@@ -1,6 +1,8 @@
 -- src/ui/options.lua
 -- Modular options screen for the menu system
 
+local Theme = require('src.ui.theme')
+
 local Options = {}
 
 function Options.init(menu)
@@ -10,26 +12,30 @@ function Options.init(menu)
         ghost = true,
         musicVolume = 5,
         sfxVolume = 5,
-        fullscreen = love.window.getFullscreen()
+        fullscreen = love.window.getFullscreen(),
+        scaleMode = "STRETCH",
+        bgColor = "BLACK"
     }
     
     -- Option definitions
     Options.ITEMS = {
         { name = "CONTROLS", type = "submenu", submenu = "controls" },
         { name = "SHADER", key = "shader", type = "select", options = {"OFF", "CRT", "GRAYSCALE", "DREAM", "GAMEBOY", "ANAGLYPH"} },
+        { name = "BG COLOR", key = "bgColor", type = "select", options = Theme.OPTIONS },
         { name = "GHOST PIECE", key = "ghost", type = "toggle" },
         { name = "MUSIC VOLUME", key = "musicVolume", type = "slider", min = 0, max = 10 },
         { name = "SFX VOLUME", key = "sfxVolume", type = "slider", min = 0, max = 10 },
         { name = "FULLSCREEN", key = "fullscreen", type = "toggle" },
+        { name = "SCALE", key = "scaleMode", type = "select", options = {"PIXEL", "FIT", "STRETCH"} },
         { name = "BACK", type = "back" }
     }
 end
 
 function Options.draw(menu, sw, sh, game)
-    game:drawText("OPTIONS", 0, 60, sw, "center", {1, 1, 1})
+    game:drawText("OPTIONS", 0, 48, sw, "center", {1, 1, 1})
     
-    local startY = 120
-    local spacing = 36
+    local startY = 100
+    local spacing = 32
     
     for i, item in ipairs(Options.ITEMS) do
         local y = startY + (i-1) * spacing

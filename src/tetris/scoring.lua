@@ -8,6 +8,13 @@ local Constants = require('src.constants')
 local Scoring = {}
 
 function Scoring.updateDropSpeed(board)
+    local VersusRules = require('src.game.versus_rules')
+    -- Chaos molasses/hyper override via VersusRules when timers active
+    if (board.molassesTimer and board.molassesTimer > 0)
+        or (board.hyperTimer and board.hyperTimer > 0) then
+        VersusRules.refreshDropSpeed(board)
+        return
+    end
     board.dropSpeed = math.max(0.05, 1.0 * (0.8 ^ (board.level - 1)))
 end
 
@@ -60,9 +67,10 @@ function Scoring.clearLines(board)
         local lineCount = #linesToRemove
         local points = 0
         local garbageToSend = 0
-        local Piece = require('src.tetris.piece')
+        local difficultClear = false -- Tetris or T-spin clear (for B2B)
         
         if board.lastWasTSpin then
+            difficultClear = true
             if lineCount == 1 then 
                 points = 800; garbageToSend = 2
                 board.lastTSpinType = "single"
@@ -81,16 +89,54 @@ function Scoring.clearLines(board)
             -- Standard garbage
             if lineCount == 2 then garbageToSend = 1
             elseif lineCount == 3 then garbageToSend = 2
-            elseif lineCount == 4 then garbageToSend = 4
+            elseif lineCount == 4 then
+                garbageToSend = 4
+                difficultClear = true
             end
+        end
+        
+        -- Back-to-back bonus (Tetris / T-spin chains)
+        if difficultClear and board.backToBack then
+            garbageToSend = garbageToSend + 1
+            if lineCount >= 4 then
+                garbageToSend = garbageToSend + 1 -- Tetris B2B hits harder
+            end
+            points = points + (board.level * 50)
+        end
+        if difficultClear then
+            board.backToBack = true
+        elseif lineCount > 0 then
+            board.backToBack = false
         end
         
         -- Combo bonus
         points = points + (50 * board.combo * board.level)
         garbageToSend = garbageToSend + math.floor(board.combo / 2)
+
+        -- Perfect Clear: board empty after the clear
+        local perfectClear = true
+        for y = 1, board.height do
+            for x = 1, board.width do
+                if board.grid[y][x] ~= 0 then
+                    perfectClear = false
+                    break
+                end
+            end
+            if not perfectClear then break end
+        end
+        if perfectClear then
+            garbageToSend = garbageToSend + 8
+            points = points + (board.level * 2000)
+            FX:shake(12, 0.35)
+            FX:flash()
+            board.perfectClearNotify = true
+        end
         
         board.score = board.score + points
         board.linesCleared = board.linesCleared + lineCount
+
+        local VersusRules = require('src.game.versus_rules')
+        VersusRules.onLinesCleared(board, lineCount)
         
         -- Cancel pending garbage first
         if garbageToSend > 0 and board.pendingGarbage > 0 then
@@ -113,7 +159,7 @@ function Scoring.clearLines(board)
         end
         
         -- Sound effects
-        if lineCount >= 4 or board.lastWasTSpin then
+        if perfectClear or lineCount >= 4 or board.lastWasTSpin then
             Audio:play('secret')
         else
             Audio:play('clear')

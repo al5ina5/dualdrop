@@ -60,6 +60,37 @@ function Board:new(width, height)
     
     -- Garbage
     self.pendingGarbage = 0
+
+    -- Versus extras
+    self.backToBack = false
+    self.fogTimer = 0
+    self.invertTimer = 0
+    self.flipHTimer = 0
+    self.flipVTimer = 0
+    self.fuzzTimer = 0
+    self.glitchTimer = 0
+    self.chromaTimer = 0
+    self.molassesTimer = 0
+    self.hyperTimer = 0
+    self.iceTimer = 0
+    self.phantomTimer = 0
+    self.phantomOffset = 0
+    self.tunnelTimer = 0
+    self.quakeTimer = 0
+    self.quakePulse = 0
+    self.invisibleTimer = 0
+    self.cementTimer = 0
+    self.holdLocked = false
+    self.holdLockClears = 0
+    self.cheeseRows = nil
+    self.raceWon = false
+    self.perfectClearNotify = false
+
+    -- Chaos power-ups (charge → lottery → fire)
+    self.chaosEnabled = false
+    self.chaosCharge = 0
+    self.chaosPowerUp = nil
+    self.chaosLottery = nil
     
     Scoring.updateDropSpeed(self)
     Piece.spawn(self)
@@ -69,6 +100,9 @@ end
 
 function Board:update(dt)
     if self.gameOver then return false end
+
+    local VersusRules = require('src.game.versus_rules')
+    VersusRules.updateBoard(self, dt)
     
     local changed = false
     
@@ -138,20 +172,21 @@ function Board:copyTable(t)
 end
 
 function Board:serializeGrid()
+    -- One character per cell. GARBAGE must stay single-char ("G") so
+    -- deserializeGrid's fixed 200-cell stream stays aligned.
     local data = {}
     for y = 1, self.height do
         for x = 1, self.width do
             local cell = self.grid[y][x]
             if type(cell) == "table" then
-                local found = false
-                for type, piece in pairs(Piece.PIECES) do
+                local token = "X"
+                for ptype, piece in pairs(Piece.PIECES) do
                     if piece.color[1] == cell[1] and piece.color[2] == cell[2] and piece.color[3] == cell[3] then
-                        table.insert(data, type)
-                        found = true
+                        token = (ptype == "GARBAGE") and "G" or ptype
                         break
                     end
                 end
-                if not found then table.insert(data, "X") end
+                table.insert(data, token)
             else
                 table.insert(data, "0")
             end
@@ -161,16 +196,21 @@ function Board:serializeGrid()
 end
 
 function Board:deserializeGrid(str)
+    if not str then return end
     local i = 1
     for y = 1, self.height do
         for x = 1, self.width do
             local char = str:sub(i, i)
-            if char == "0" then
+            if char == "" or char == "0" then
                 self.grid[y][x] = 0
+            elseif char == "G" or char == "8" or char == "X" then
+                self.grid[y][x] = Piece.PIECES.GARBAGE.color
             elseif Piece.PIECES[char] then
                 self.grid[y][x] = Piece.PIECES[char].color
             else
-                self.grid[y][x] = {0.5, 0.5, 0.5}
+                -- Legacy: multi-char "GARBAGE" would corrupt the stream;
+                -- treat unknown single chars as garbage gray.
+                self.grid[y][x] = Piece.PIECES.GARBAGE.color
             end
             i = i + 1
         end

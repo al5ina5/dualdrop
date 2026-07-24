@@ -10,6 +10,7 @@ Scores.history = {}
 Scores.stats = {
     bestSprint = 0,
     highScore = 0,
+    highLines = 0,
     totalGames = 0,
     versusWins = 0,
     versusLosses = 0,
@@ -23,6 +24,7 @@ function Scores.load()
     Scores.stats = {
         bestSprint = 0,
         highScore = 0,
+        highLines = 0,
         totalGames = 0,
         versusWins = 0,
         versusLosses = 0,
@@ -73,6 +75,7 @@ function Scores.calculateStats()
     Scores.stats.totalGames = #Scores.history
     Scores.stats.bestSprint = 0
     Scores.stats.highScore = 0
+    Scores.stats.highLines = 0
     Scores.stats.versusWins = 0
     Scores.stats.versusLosses = 0
     Scores.stats.marathonHighScore = 0
@@ -104,6 +107,10 @@ function Scores.calculateStats()
             Scores.stats.highScore = match.score
         end
 
+        if (match.lines or 0) > Scores.stats.highLines then
+            Scores.stats.highLines = match.lines or 0
+        end
+
         if match.mode == "VERSUS" then
             if match.result == "WIN" then
                 Scores.stats.versusWins = Scores.stats.versusWins + 1
@@ -112,6 +119,20 @@ function Scores.calculateStats()
             end
         end
     end
+end
+
+-- Best score/lines for end-of-match display (includes current values)
+function Scores.getHighsForMode(mode, score, lines)
+    local stats = Scores.stats
+    local highScore = stats.highScore or 0
+    local highLines = stats.highLines or 0
+
+    if mode == "MARATHON" then
+        highScore = stats.marathonHighScore or 0
+        highLines = stats.marathonHighLines or 0
+    end
+
+    return math.max(score or 0, highScore), math.max(lines or 0, highLines)
 end
 
 function Scores.addMatch(mode, score, time, result, extraStats)

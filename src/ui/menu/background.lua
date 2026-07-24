@@ -2,6 +2,7 @@
 -- Animated falling blocks background for menus
 
 local TetrisBoard = require('src.tetris.board')
+local Theme = require('src.ui.theme')
 
 local Background = {}
 
@@ -10,7 +11,7 @@ function Background.init()
     local pieceTypes = {"I", "J", "L", "O", "S", "T", "Z"}
     
     for i = 1, 25 do
-        local sizeX, sizeY = 32, 22
+        local sizeX, sizeY = 32, 24
         local type = pieceTypes[love.math.random(#pieceTypes)]
         table.insert(blocks, {
             type = type,
@@ -51,16 +52,20 @@ function Background.update(blocks, dt)
 end
 
 function Background.draw(blocks)
-    -- Darken background
-    love.graphics.setColor(0, 0, 0, 1.0)
+    local theme = Theme.get()
+    local bg = theme.bg
+    love.graphics.setColor(bg[1], bg[2], bg[3], 1.0)
     love.graphics.rectangle("fill", 0, 0, 640, 480)
+    
+    local opacityScale = theme.menuBlockOpacityScale or 1.0
     
     -- Draw falling blocks
     for _, block in ipairs(blocks) do
         local data = TetrisBoard.PIECES[block.type]
         if data then
-            local r, g, b = unpack(block.color or {0, 0.8, 0.2})
-            love.graphics.setColor(r, g, b, block.opacity)
+            local color = Theme.adaptBlockColor(block.color or {0, 0.8, 0.2})
+            local r, g, b = unpack(color)
+            love.graphics.setColor(r, g, b, block.opacity * opacityScale)
             
             local shape = data
             for y = 1, #shape do

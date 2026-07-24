@@ -96,27 +96,30 @@ function RelayClient:poll()
         return messages
     end
     
-    local combinedData = self.buffer .. (data or partial or "")
-    self.buffer = ""
-    
-    -- Split by newline and process messages
-    for line in (combinedData .. "\n"):gmatch("(.-)\n") do
+    -- Append available bytes; keep incomplete trailing line in buffer
+    self.buffer = self.buffer .. (data or partial or "")
+
+    while true do
+        local nl = self.buffer:find("\n", 1, true)
+        if not nl then break end
+        local line = self.buffer:sub(1, nl - 1)
+        self.buffer = self.buffer:sub(nl + 1)
+        -- Strip CR if present (some platforms)
+        if line:sub(-1) == "\r" then line = line:sub(1, -2) end
+
         if line == "PAIRED" then
             print("RelayClient: Opponent connected to relay!")
             self.paired = true
         elseif line == "OPPONENT_LEFT" then
             print("RelayClient: Opponent left the room!")
             self.paired = false
-            -- Generate a player_left message so the game handles the disconnection
             table.insert(messages, { type = "player_left", id = "opponent", disconnectReason = "opponent_left" })
         elseif line:match("^ERROR:") then
             local errorMsg = line:sub(7)
             print("RelayClient: Server error: " .. errorMsg)
-            -- Could generate an error message for the game to handle
         elseif line ~= "" then
             local msg = Protocol.decode(line)
             if msg and msg.id ~= self.playerId then
-                -- Translate protocol types to match LAN behavior
                 if msg.type == Protocol.MSG.PLAYER_JOIN then 
                     msg.type = "player_joined"
                 elseif msg.type == Protocol.MSG.PLAYER_LEAVE then 
@@ -142,20 +145,31 @@ function RelayClient:send(data)
 end
 
 -- Compatible interface with ENet client
-function RelayClient:sendBoardSync(gridData)
-    return self:send(Protocol.encode(Protocol.MSG.BOARD_SYNC, self.playerId, gridData))
+function RelayClient:sendBoardSync(gridData, playerId)
+    return self:send(Protocol.encode(Protocol.MSG.BOARD_SYNC, playerId or self.playerId, gridData))
 end
 
-function RelayClient:sendPieceMove(type, x, y, rot)
-    return self:send(Protocol.encode(Protocol.MSG.PIECE_MOVE, self.playerId, type, x, y, rot))
+function RelayClient:sendPieceMove(type, x, y, rot, playerId)
+    return self:send(Protocol.encode(Protocol.MSG.PIECE_MOVE, playerId or self.playerId, type, x, y, rot))
 end
 
 function RelayClient:sendMessage(msg)
+    local id = msg.id or self.playerId
     local encoded
     if msg.type == Protocol.MSG.GARBAGE then
-        encoded = Protocol.encode(msg.type, self.playerId, msg.lines or 0)
+        if msg.target then
+            encoded = Protocol.encode(msg.type, id, msg.lines or 0, msg.target)
+        else
+            encoded = Protocol.encode(msg.type, id, msg.lines or 0)
+        end
+    elseif msg.type == Protocol.MSG.EFFECT then
+        encoded = Protocol.encode(msg.type, id, msg.effect or "fog", msg.target or "", msg.duration or 5)
+    elseif msg.type == Protocol.MSG.RACE_WIN then
+        encoded = Protocol.encode(msg.type, id)
+    elseif msg.type == Protocol.MSG.LOBBY then
+        encoded = Protocol.encode(msg.type, id, msg.data or "")
     else
-        encoded = Protocol.encode(msg.type, self.playerId, msg.data or "")
+        encoded = Protocol.encode(msg.type, id, msg.data or "")
     end
     return self:send(encoded)
 end

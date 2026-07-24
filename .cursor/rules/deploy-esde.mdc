@@ -1,0 +1,22 @@
+---
+description: How to deploy Dualdrop to ES-DE LAN machines (aio / kiosk)
+alwaysApply: true
+---
+
+# ES-DE deploy (aio / kiosk)
+
+When the user asks to deploy to machines, kiosks, aio, or kiosk:
+
+1. Run the matching npm script from the repo root (rebuilds, then overwrites `~/Games/Dualdrop` only).
+2. Do **not** invent alternate SCP/rsync one-liners unless a script fails.
+3. **Never** overwrite `~/ROMs/ports/Dualdrop.sh` — that is the Emusation wrapper (`emusation-hotkey-exit`, Select+Start quit). Deploy intentionally leaves it alone.
+
+| Ask | Command |
+|-----|---------|
+| both machines / "deploy to machines" | `npm run deploy:machines` |
+| kiosk only | `npm run deploy:kiosk` |
+| aio only | `npm run deploy:aio` |
+
+- `deploy:aio` jumps via `kiosk.local` when direct SSH fails.
+- Optional password: `DEPLOY_SSH_PASS='...' npm run deploy:aio` (or same env for `deploy:machines`).
+- Scripts live in `package.json`; underlying tool is `build/esde/deploy.sh`.

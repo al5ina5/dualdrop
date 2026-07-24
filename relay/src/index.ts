@@ -6,16 +6,23 @@ import net from 'net';
 const HTTP_PORT = process.env.PORT || 3000;
 const TCP_PORT = process.env.TCP_PORT || 12346;
 
+const FORMAT_SEATS: Record<string, number> = {
+  '1v1': 2,
+  '2v1': 3,
+  '2v2': 4,
+};
+
 // --- Types ---
 interface Room {
   code: string;
   hostName: string;
   isPublic: boolean;
-  players: number;
-  maxPlayers: number;
+  players: number; // seats used
+  maxPlayers: number; // max seats
+  format: string;
   createdAt: number;
   lastHeartbeat: number;
-  gameStarted: boolean;  // Track if game has begun
+  gameStarted: boolean;
 }
 
 interface RoomData {
@@ -27,11 +34,15 @@ interface RoomData {
 const rooms = new Map<string, Room>();
 const roomSockets = new Map<string, RoomData>();
 
-// --- Helper: Generate Room Code ---
 function generateRoomCode(): string {
-  // Generate 6-digit numeric code (100000-999999) for easier gamepad input
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   return code;
+}
+
+function resolveMaxSeats(format?: string, maxSeats?: number): number {
+  if (typeof maxSeats === 'number' && maxSeats >= 2 && maxSeats <= 4) return maxSeats;
+  if (format && FORMAT_SEATS[format]) return FORMAT_SEATS[format];
+  return 2;
 }
 
 // --- HTTP Server (Matchmaker) ---
@@ -40,52 +51,63 @@ app.use(cors());
 app.use(express.json());
 
 app.post('/api/create-room', (req: Request, res: Response) => {
-  const { isPublic, hostName = 'Host' } = req.body;
+  const { isPublic, hostName = 'Host', format = '1v1', maxSeats, seatsUsed = 1 } = req.body;
   const code = generateRoomCode();
-  
+  const max = resolveMaxSeats(format, maxSeats);
+
   const room: Room = {
     code,
     hostName,
     isPublic: !!isPublic,
-    players: 1,
-    maxPlayers: 2,
+    players: Math.min(max, Math.max(1, Number(seatsUsed) || 1)),
+    maxPlayers: max,
+    format: format || '1v1',
     createdAt: Date.now(),
     lastHeartbeat: Date.now(),
     gameStarted: false,
   };
-  
+
   rooms.set(code, room);
-  res.json({ roomCode: code });
-  console.log(`[HTTP] Room ${code} created`);
+  res.json({ roomCode: code, format: room.format, maxPlayers: room.maxPlayers });
+  console.log(`[HTTP] Room ${code} created (${room.format}, ${room.players}/${room.maxPlayers})`);
 });
 
 app.get('/api/list-rooms', (_req: Request, res: Response) => {
   const now = Date.now();
-  const publicRooms = Array.from(rooms.values()).filter(r => 
-    r.isPublic && 
-    r.players < r.maxPlayers && 
-    !r.gameStarted &&  // Don't show rooms where game already started
-    (now - r.lastHeartbeat) < 60000 // Only show active rooms
+  const publicRooms = Array.from(rooms.values()).filter(r =>
+    r.isPublic &&
+    r.players < r.maxPlayers &&
+    !r.gameStarted &&
+    (now - r.lastHeartbeat) < 60000
   );
   res.json({ rooms: publicRooms });
 });
 
 app.post('/api/join-room', (req: Request, res: Response) => {
-  const { roomCode } = req.body;
-  const room = rooms.get(roomCode?.toUpperCase());
-  
+  const { roomCode, seats = 1 } = req.body;
+  const room = rooms.get(String(roomCode || '').toUpperCase());
+  const seatCount = Math.max(1, Math.min(2, Number(seats) || 1));
+
   if (!room) return res.status(404).json({ error: 'Room not found' });
-  if (room.players >= room.maxPlayers) return res.status(400).json({ error: 'Room full' });
+  if (room.players + seatCount > room.maxPlayers) {
+    return res.status(400).json({ error: 'Room full' });
+  }
   if (room.gameStarted) return res.status(400).json({ error: 'Game already in progress' });
-  
-  res.json({ success: true });
+
+  room.players = Math.min(room.maxPlayers, room.players + seatCount);
+  room.lastHeartbeat = Date.now();
+
+  res.json({ success: true, format: room.format, maxPlayers: room.maxPlayers });
 });
 
 app.post('/api/heartbeat', (req: Request, res: Response) => {
-  const { roomCode } = req.body;
-  const room = rooms.get(roomCode?.toUpperCase());
+  const { roomCode, players } = req.body;
+  const room = rooms.get(String(roomCode || '').toUpperCase());
   if (room) {
     room.lastHeartbeat = Date.now();
+    if (typeof players === 'number' && players >= 0) {
+      room.players = Math.min(room.maxPlayers, players);
+    }
     res.json({ success: true });
   } else {
     res.status(404).json({ error: 'Room not found' });
@@ -97,6 +119,9 @@ app.listen(HTTP_PORT, () => {
 });
 
 // --- TCP Server (Real-time Relay) ---
+// Capacity is per-console sockets; seat accounting is HTTP/lobby. Allow up to 4 consoles.
+const MAX_SOCKETS_PER_ROOM = 4;
+
 const tcpServer = net.createServer((socket: net.Socket) => {
   let currentRoomCode: string | null = null;
   let buffer = '';
@@ -111,28 +136,25 @@ const tcpServer = net.createServer((socket: net.Socket) => {
       if (line.startsWith('JOIN:')) {
         const code = line.split(':')[1].toUpperCase();
         currentRoomCode = code;
-        
+
         const room = rooms.get(code);
-        
-        // Reject if game already started
+
         if (room && room.gameStarted) {
           socket.write('ERROR:Game already in progress\n');
           socket.end();
           continue;
         }
-        
+
         let roomData = roomSockets.get(code);
         if (!roomData) {
           roomData = { sockets: [socket], gameStarted: false };
           roomSockets.set(code, roomData);
-          console.log(`[TCP] Player joined room ${code} (1st player)`);
+          console.log(`[TCP] Console joined room ${code} (1st)`);
         } else {
-          if (roomData.sockets.length < 2) {
+          if (roomData.sockets.length < MAX_SOCKETS_PER_ROOM) {
             roomData.sockets.push(socket);
-            if (room) room.players = roomData.sockets.length;
-            console.log(`[TCP] Player joined room ${code} (2nd player)`);
-            
-            // Notify both players they are paired
+            console.log(`[TCP] Console joined room ${code} (${roomData.sockets.length})`);
+            // Notify all consoles someone joined (lobby sync handled by game protocol)
             roomData.sockets.forEach(s => s.write('PAIRED\n'));
           } else {
             socket.write('ERROR:Room full\n');
@@ -142,7 +164,6 @@ const tcpServer = net.createServer((socket: net.Socket) => {
         continue;
       }
 
-      // Track game start (countdown message)
       if (line.includes('|scd|') || line.startsWith('scd|')) {
         const roomData = roomSockets.get(currentRoomCode || '');
         const room = rooms.get(currentRoomCode || '');
@@ -151,7 +172,14 @@ const tcpServer = net.createServer((socket: net.Socket) => {
         console.log(`[TCP] Game started in room ${currentRoomCode}`);
       }
 
-      // Forward data to others in the same room
+      // Returning to lobby (rematch) clears the in-progress lock
+      if (line.includes('|lobby|') || line.startsWith('lobby|')) {
+        const roomData = roomSockets.get(currentRoomCode || '');
+        const room = rooms.get(currentRoomCode || '');
+        if (roomData) roomData.gameStarted = false;
+        if (room) room.gameStarted = false;
+      }
+
       if (currentRoomCode) {
         const roomData = roomSockets.get(currentRoomCode);
         if (roomData) {
@@ -164,27 +192,23 @@ const tcpServer = net.createServer((socket: net.Socket) => {
   });
 
   const cleanup = () => {
-    if (cleanedUp) return;  // Prevent double cleanup
+    if (cleanedUp) return;
     cleanedUp = true;
-    
+
     if (currentRoomCode) {
       const roomData = roomSockets.get(currentRoomCode);
       if (roomData) {
         roomData.sockets = roomData.sockets.filter(s => s !== socket);
         const room = rooms.get(currentRoomCode);
-        if (room) room.players = roomData.sockets.length;
 
         if (roomData.sockets.length === 0) {
-          // No players left - delete the room entirely
           roomSockets.delete(currentRoomCode);
           rooms.delete(currentRoomCode);
           console.log(`[TCP] Room ${currentRoomCode} deleted (empty)`);
         } else {
-          // Notify remaining player(s) that opponent left
           roomData.sockets.forEach(s => s.write('OPPONENT_LEFT\n'));
-          console.log(`[TCP] Player left room ${currentRoomCode}, notified remaining players`);
-          
-          // If game was in progress, reset game state so host can rematch or continue solo
+          console.log(`[TCP] Console left room ${currentRoomCode}, notified remaining`);
+
           if (roomData.gameStarted) {
             roomData.gameStarted = false;
             if (room) room.gameStarted = false;

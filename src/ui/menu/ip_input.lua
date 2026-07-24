@@ -38,7 +38,7 @@ function IPInput.draw(menu, sw, sh, game)
     
     -- Instructions
     if menu.fonts then love.graphics.setFont(menu.fonts.small) end
-    game:drawText("Use D-PAD to enter IP address", 0, sh - 100, sw, "center", {0.6, 0.6, 0.6})
+    game:drawText("Port 12345  •  D-PAD to edit IP", 0, sh - 100, sw, "center", {0.6, 0.6, 0.6})
     game:drawText("A/ENTER to JOIN  •  B/ESC to BACK", 0, sh - 60, sw, "center", {0.6, 0.6, 0.6})
 end
 
@@ -120,6 +120,7 @@ function IPInput.submit(menu)
     end
     local ip = table.concat(octets, ".")
     menu.state = Base.STATE.CONNECTING
+    menu.connectionError = nil
     menu.selectedServer = {name = "Custom IP", ip = ip, port = 12345}
     
     -- Save the last IP

@@ -1,9 +1,9 @@
 -- src/net/server.lua
--- Network server for Blockdrop
+-- Network server for Dualdrop
 -- Hosts the game and relays board/piece updates to all clients
 
-local enet = require("enet")
 local Protocol = require("src.net.protocol")
+local PortUtil = require("src.net.port_util")
 
 local Server = {}
 Server.__index = Server
@@ -13,8 +13,14 @@ function Server:new(port)
 
     self.port = port or 12345
 
-    -- Create server host
-    self.host = enet.host_create("*:" .. self.port, 4)
+    -- Always clear stale listeners first so hosting never soft-fails on a leftover process
+    PortUtil.freeListenPort(self.port)
+    if love and love.timer and love.timer.sleep then
+        love.timer.sleep(0.05)
+    end
+    collectgarbage("collect")
+
+    self.host = PortUtil.createENetHost("*:" .. self.port, 4)
 
     if not self.host then
         print("ERROR: Failed to create server on port " .. self.port)
@@ -26,7 +32,7 @@ function Server:new(port)
     self.nextPlayerId = 1
     self.playerId = "host"
     
-    print("=== Blockdrop Server Started ===")
+    print("=== Dualdrop Server Started ===")
     print("Port: " .. self.port)
     
     return self
@@ -38,8 +44,13 @@ function Server:disconnect()
         peer:disconnect_now()
     end
     self.host:flush()
+    -- Explicit destroy so the OS port is released immediately for re-host
+    if self.host.destroy then
+        self.host:destroy()
+    end
     self.host = nil
     self.players = {}
+    collectgarbage("collect")
     print("Server stopped")
 end
 
@@ -53,24 +64,36 @@ function Server:broadcast(data, excludePeer, reliable)
     end
 end
 
-function Server:sendBoardSync(gridData)
+function Server:sendBoardSync(gridData, playerId)
     if not self.host then return end
-    self:broadcast(Protocol.encode(Protocol.MSG.BOARD_SYNC, "host", gridData), nil, true)
+    self:broadcast(Protocol.encode(Protocol.MSG.BOARD_SYNC, playerId or self.playerId or "host", gridData), nil, true)
 end
 
-function Server:sendPieceMove(type, x, y, rot)
+function Server:sendPieceMove(type, x, y, rot, playerId)
     if not self.host then return end
-    self:broadcast(Protocol.encode(Protocol.MSG.PIECE_MOVE, "host", type, x, y, rot))
+    self:broadcast(Protocol.encode(Protocol.MSG.PIECE_MOVE, playerId or self.playerId or "host", type, x, y, rot))
 end
 
 function Server:sendMessage(msg)
     if not self.host then return end
-    -- Generic message send
+    local id = msg.id or self.playerId or "host"
     local data
     if msg.type == Protocol.MSG.GARBAGE then
-        data = Protocol.encode(msg.type, msg.id or "host", msg.lines or 0)
+        if msg.target then
+            data = Protocol.encode(msg.type, id, msg.lines or 0, msg.target)
+        else
+            data = Protocol.encode(msg.type, id, msg.lines or 0)
+        end
+    elseif msg.type == Protocol.MSG.EFFECT then
+        data = Protocol.encode(msg.type, id, msg.effect or "fog", msg.target or "", msg.duration or 5)
+    elseif msg.type == Protocol.MSG.RACE_WIN then
+        data = Protocol.encode(msg.type, id)
+    elseif msg.type == Protocol.MSG.LOBBY then
+        data = Protocol.encode(msg.type, id, msg.data or "")
+    elseif msg.type == Protocol.MSG.CLAIM or msg.type == Protocol.MSG.READY or msg.type == Protocol.MSG.UNCLAIM then
+        data = Protocol.encode(msg.type, id, msg.data or "")
     else
-        data = Protocol.encode(msg.type, msg.id or "host", msg.data or "")
+        data = Protocol.encode(msg.type, id, msg.data or "")
     end
     self:broadcast(data, nil, true)
 end
@@ -84,19 +107,16 @@ function Server:poll()
         if event.type == "connect" then
             local playerId = "p" .. self.nextPlayerId
             self.nextPlayerId = self.nextPlayerId + 1
-            self.players[event.peer] = { id = playerId }
+            self.players[event.peer] = { id = playerId, seats = {} }
 
             print("Server: Player " .. playerId .. " connected from " .. tostring(event.peer))
 
-            -- Tell the new player their ID
             local joinMsg = Protocol.encode(Protocol.MSG.PLAYER_JOIN, playerId)
             print("Server: Sending PLAYER_JOIN to new player: " .. joinMsg)
             event.peer:send(joinMsg, 0, "reliable")
 
-            -- Tell everyone else about the new player
             self:broadcast(Protocol.encode(Protocol.MSG.PLAYER_JOIN, playerId), event.peer, true)
 
-            -- Tell the new player about existing players
             event.peer:send(Protocol.encode(Protocol.MSG.PLAYER_JOIN, "host"), 0, "reliable")
             for peer, p in pairs(self.players) do
                 if peer ~= event.peer then
@@ -116,11 +136,16 @@ function Server:poll()
                    msg.type == Protocol.MSG.GAME_OVER or
                    msg.type == Protocol.MSG.START_COUNTDOWN or
                    msg.type == Protocol.MSG.SCORE_SYNC or
-                   msg.type == Protocol.MSG.GARBAGE then
-                    -- Relay to others
+                   msg.type == Protocol.MSG.GARBAGE or
+                   msg.type == Protocol.MSG.EFFECT or
+                   msg.type == Protocol.MSG.RACE_WIN or
+                   msg.type == Protocol.MSG.LOBBY or
+                   msg.type == Protocol.MSG.CLAIM or
+                   msg.type == Protocol.MSG.READY or
+                   msg.type == Protocol.MSG.UNCLAIM or
+                   msg.type == Protocol.MSG.PING or
+                   msg.type == Protocol.MSG.PONG then
                     self:broadcast(event.data, event.peer, msg.type ~= Protocol.MSG.PIECE_MOVE)
-                    
-                    -- Notify host game
                     table.insert(messages, msg)
                 end
             end

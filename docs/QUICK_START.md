@@ -1,57 +1,40 @@
-# Quick Start - Online Multiplayer
+# Quick Start
 
-## 5-Minute Setup
+## Play on ES-DE kiosks (aio / kiosk)
 
-### 1. Get Ably API Key
-- Go to [ably.com/signup](https://ably.com/signup)
-- Create a new app
-- Copy your API key from the **API Keys** tab
+See **[ESDE_LAN_INSTALL.md](ESDE_LAN_INSTALL.md)** for the minimal install path.
 
-### 2. Deploy API
+Rebuild and overwrite game files on both machines (leaves `~/ROMs/ports/Dualdrop.sh` alone):
+
 ```bash
-# Install dependencies
-cd api && npm install && cd ..
-
-# Deploy (you'll be prompted to login)
-vercel --prod
-
-# Add your Ably key
-vercel env add ABLY_API_KEY production
-# (paste your key when prompted)
-
-# Redeploy with the key
-vercel --prod
+npm run deploy:machines
 ```
 
-### 3. Create Vercel KV Database
-1. Visit [vercel.com/dashboard](https://vercel.com/dashboard)
-2. Click your project → **Storage** → **Create Database** → **KV**
-3. Name it `tetris-rooms` → **Create** → **Connect to Project**
+Or one host at a time:
 
-### 4. Update Game Config
 ```bash
-# Vercel will show your URL after deployment, like:
-# https://love-tetris-api-xyz.vercel.app
-
-# Edit src/constants.lua and add this line:
-Constants.API_BASE_URL = "https://your-actual-url.vercel.app"
+npm run deploy:kiosk
+npm run deploy:aio
 ```
 
-### 5. Redeploy One More Time
+`deploy:aio` uses `kiosk.local` as jump host when direct SSH is closed. Optional password:
+
 ```bash
-vercel --prod
+DEPLOY_SSH_PASS='...' npm run deploy:aio
 ```
 
-### 6. Test It!
-```bash
-# Run two instances of the game
-love .  # Instance 1
-love .  # Instance 2
+LAN: Multiplayer → LAN → Create Game on one machine, Find Game (or Join By IP) on the other.
 
-# Instance 1: MULTIPLAYER → HOST ONLINE → Create Room
-# Instance 2: MULTIPLAYER → JOIN WITH CODE → Enter the room code
+## Run locally (dev)
+
+```bash
+love .
 ```
 
-Done! 🎮
+Requires LÖVE 11.5.
 
-For detailed troubleshooting, see [ONLINE_MULTIPLAYER_SETUP.md](ONLINE_MULTIPLAYER_SETUP.md)
+## Online multiplayer (optional)
+
+Online matchmaking uses the Railway relay configured in `src/constants.lua` (`API_BASE_URL`, `RELAY_HOST`, `RELAY_PORT`). Source for the relay server is in `relay/`.
+
+Legacy Ably/Vercel docs are obsolete and were removed from this quick start.

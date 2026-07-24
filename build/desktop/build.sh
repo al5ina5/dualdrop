@@ -1,6 +1,6 @@
 #!/bin/bash
 # build/desktop/build.sh
-# Builds Blockdrop for Windows, macOS, and Linux
+# Builds Dualdrop for Windows, macOS, and Linux
 #
 # Usage:
 #   ./build/desktop/build.sh          # Build all platforms
@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Configuration
-GAME_NAME="Blockdrop"
+GAME_NAME="Dualdrop"
 LOVE_VERSION="11.5"
 BUILD_DIR="$PROJECT_ROOT/dist/desktop"
 CACHE_DIR="$PROJECT_ROOT/build/desktop/.cache"
@@ -31,7 +31,7 @@ LOVE_MACOS_URL="https://github.com/love2d/love/releases/download/${LOVE_VERSION}
 LOVE_LINUX_URL="https://github.com/love2d/love/releases/download/${LOVE_VERSION}/love-${LOVE_VERSION}-x86_64.AppImage"
 
 # Icon source
-ICON_SOURCE="$PROJECT_ROOT/assets/img/blockdrop.png"
+ICON_SOURCE="$PROJECT_ROOT/assets/img/dualdrop.png"
 
 # Colors for output
 RED='\033[0;31m'
@@ -273,7 +273,7 @@ build_windows() {
     cat > "$win_dir/Run ${GAME_NAME}.bat" << 'EOF'
 @echo off
 cd /d "%~dp0"
-start "" "%~dp0\Blockdrop.exe"
+start "" "%~dp0\Dualdrop.exe"
 EOF
     
     print_success "Built Windows version: $win_dir/"
@@ -312,12 +312,12 @@ build_macos() {
         # macOS sed
         sed -i '' "s/<string>LÖVE<\/string>/<string>${GAME_NAME}<\/string>/g" "$plist"
         sed -i '' "s/<string>love<\/string>/<string>${GAME_NAME}<\/string>/g" "$plist"
-        sed -i '' "s/org\.love2d\.love/com.blockdrop.game/g" "$plist"
+        sed -i '' "s/org\.love2d\.love/com.dualdrop.game/g" "$plist"
     else
         # GNU sed
         sed -i "s/<string>LÖVE<\/string>/<string>${GAME_NAME}<\/string>/g" "$plist"
         sed -i "s/<string>love<\/string>/<string>${GAME_NAME}<\/string>/g" "$plist"
-        sed -i "s/org\.love2d\.love/com.blockdrop.game/g" "$plist"
+        sed -i "s/org\.love2d\.love/com.dualdrop.game/g" "$plist"
     fi
     
     # Copy .love file into the app bundle
@@ -365,11 +365,11 @@ build_linux() {
     # Create a launcher script
     cat > "$linux_dir/${GAME_NAME}.sh" << 'EOF'
 #!/bin/bash
-# Blockdrop Linux Launcher
+# Dualdrop Linux Launcher
 # This script tries multiple methods to run the game
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOVE_FILE="$SCRIPT_DIR/Blockdrop.love"
+LOVE_FILE="$SCRIPT_DIR/Dualdrop.love"
 
 # Method 1: Try system-installed LÖVE
 if command -v love &> /dev/null; then
@@ -430,7 +430,7 @@ EOF
 SELF=$(readlink -f "$0")
 HERE=${SELF%/*}
 export LD_LIBRARY_PATH="${HERE}/usr/lib/:${LD_LIBRARY_PATH}"
-exec "${HERE}/usr/bin/love" "${HERE}/Blockdrop.love" "$@"
+exec "${HERE}/usr/bin/love" "${HERE}/Dualdrop.love" "$@"
 EOF
         chmod +x "squashfs-root/AppRun"
         
@@ -454,7 +454,7 @@ EOF
         # Extraction failed (no FUSE) - copy AppImage directly
         cp "$cache_file" "$linux_dir/love.AppImage"
         print_warning "Could not extract AppImage (FUSE not available)"
-        print_warning "Included love.AppImage separately - users can run: ./love.AppImage Blockdrop.love"
+        print_warning "Included love.AppImage separately - users can run: ./love.AppImage Dualdrop.love"
     fi
     
     cd "$PROJECT_ROOT"

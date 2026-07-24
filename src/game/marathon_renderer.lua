@@ -1,63 +1,64 @@
 -- src/game/marathon_renderer.lua
 -- Renders Marathon-specific HUD elements
 
+local Theme = require('src.ui.theme')
+
 local MarathonRenderer = {}
 
 function MarathonRenderer.drawHUD(marathonState, board, fonts, sw, sh, drawTextFunc)
-    local CONST = require('src.constants')
-    
-    -- Calculate positions (doubled for 640x480)
-    local rightX = sw - 40
-    local topY = 200
-    local lineHeight = 80
-    
-    -- Time display (formatted as MM:SS.MS)
+    -- Right gutter beside the playfield (board is 320px centered on 640)
+    local margin = 12
+    local colW = 140
+    local colRight = sw - margin
+    local colLeft = colRight - colW
+    local y = 200
+    local row = 36
+
     local totalSeconds = marathonState.playTime
     local minutes = math.floor(totalSeconds / 60)
     local seconds = math.floor(totalSeconds % 60)
     local centiseconds = math.floor((totalSeconds % 1) * 100)
     local timeStr = string.format("%02d:%02d.%02d", minutes, seconds, centiseconds)
-    
-    drawTextFunc("TIME", rightX, topY, 400, "right", {1, 1, 1, 0.6})
-    drawTextFunc(timeStr, rightX, topY + 40, 400, "right", {1, 1, 1, 1})
-    
-    -- Level with progress
-    local levelY = topY + 100
-    drawTextFunc("LEVEL", rightX, levelY, 400, "right", {1, 1, 1, 0.6})
-    drawTextFunc(tostring(board.level), rightX, levelY + 40, 400, "right", {0.3, 1, 0.3, 1})
-    
+
+    drawTextFunc("TIME", colLeft, y, colW, "right", {1, 1, 1, 0.6})
+    y = y + 18
+    drawTextFunc(timeStr, colLeft, y, colW, "right", {1, 1, 1, 1})
+    y = y + row
+
+    drawTextFunc("LEVEL", colLeft, y, colW, "right", {1, 1, 1, 0.6})
+    y = y + 18
+    drawTextFunc(tostring(board.level), colLeft, y, colW, "right", {0.3, 1, 0.3, 1})
+    y = y + 22
+
     -- Progress to next level (0-10 lines)
     local progress = (board.linesCleared % 10) / 10
-    local barWidth = 200
-    local barHeight = 12
-    local barX = rightX - barWidth
-    local barY = levelY + 100
-    
-    -- Background bar
-    love.graphics.setColor(0.3, 0.3, 0.3, 0.5)
+    local barWidth = colW
+    local barHeight = 8
+    local barX = colLeft
+    local barY = y
+    local barBg = Theme.get().barBg
+    love.graphics.setColor(barBg[1], barBg[2], barBg[3], barBg[4] or 0.85)
     love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
-    
-    -- Progress bar
-    love.graphics.setColor(0.3, 1, 0.3, 0.8)
+    love.graphics.setColor(0.25, 0.75, 0.25, 0.95)
     love.graphics.rectangle("fill", barX, barY, barWidth * progress, barHeight)
-    
-    -- Lines display
-    local linesY = levelY + 130
-    drawTextFunc("LINES", rightX, linesY, 400, "right", {1, 1, 1, 0.6})
-    drawTextFunc(tostring(board.linesCleared), rightX, linesY + 40, 400, "right", {1, 1, 1, 1})
-    
-    -- Max combo
-    local comboY = linesY + 100
-    drawTextFunc("MAX COMBO", rightX, comboY, 400, "right", {1, 1, 1, 0.6})
+    y = y + 20
+
+    drawTextFunc("LINES", colLeft, y, colW, "right", {1, 1, 1, 0.6})
+    y = y + 18
+    drawTextFunc(tostring(board.linesCleared), colLeft, y, colW, "right", {1, 1, 1, 1})
+    y = y + row
+
+    drawTextFunc("MAX COMBO", colLeft, y, colW, "right", {1, 1, 1, 0.6})
+    y = y + 18
     local comboColor = marathonState.maxCombo > 5 and {1, 0.7, 0.3, 1} or {1, 1, 1, 1}
-    drawTextFunc(tostring(marathonState.maxCombo), rightX, comboY + 40, 400, "right", comboColor)
-    
-    -- T-spins
+    drawTextFunc(tostring(marathonState.maxCombo), colLeft, y, colW, "right", comboColor)
+
     local tspinTotal = MarathonRenderer.getTotalTSpins(marathonState)
     if tspinTotal > 0 then
-        local tspinY = comboY + 100
-        drawTextFunc("T-SPINS", rightX, tspinY, 400, "right", {1, 1, 1, 0.6})
-        drawTextFunc(tostring(tspinTotal), rightX, tspinY + 40, 400, "right", {0.7, 0.3, 1, 1})
+        y = y + row
+        drawTextFunc("T-SPINS", colLeft, y, colW, "right", {1, 1, 1, 0.6})
+        y = y + 18
+        drawTextFunc(tostring(tspinTotal), colLeft, y, colW, "right", {0.7, 0.3, 1, 1})
     end
 end
 

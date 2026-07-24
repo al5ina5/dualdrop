@@ -3,6 +3,7 @@
 
 local Audio = require('src.audio')
 local Settings = require('src.data.settings')
+local Theme = require('src.ui.theme')
 
 local SettingsHandler = {}
 
@@ -16,6 +17,10 @@ function SettingsHandler.handleChange(key, value, game, renderer)
         SettingsHandler.handleShaderChange(value, renderer)
     elseif key == "fullscreen" then
         love.window.setFullscreen(value)
+    elseif key == "scaleMode" then
+        -- Applied live in Renderer.draw from menu.settings
+    elseif key == "bgColor" then
+        Theme.set(value)
     elseif key == "musicVolume" then
         Audio:setMusicVolume(value / 10)
     elseif key == "sfxVolume" then

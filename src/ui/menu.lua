@@ -12,6 +12,8 @@ local Stats = require('src.ui.menu.stats_screen')
 local ControlsUI = require('src.ui.menu.controls_screen')
 local OnlineScreens = require('src.ui.menu.online_screens')
 local RoomCodeInput = require('src.ui.menu.room_code_input')
+local LobbyScreen = require('src.ui.menu.lobby_screen')
+local SetupScreen = require('src.ui.menu.setup_screen')
 
 local Menu = {}
 Menu.__index = Menu
@@ -92,6 +94,10 @@ function Menu:drawForeground(game)
         OnlineScreens.drawWaiting(self, sw, sh, game)
     elseif self.state == Menu.STATE.ROOM_CODE_INPUT then
         RoomCodeInput.draw(self, sw, sh, game)
+    elseif self.state == Menu.STATE.MATCH_SETUP then
+        SetupScreen.draw(self, sw, sh, game)
+    elseif self.state == Menu.STATE.LOBBY then
+        LobbyScreen.draw(self, sw, sh, game)
     end
 
     love.graphics.setColor(1, 1, 1)
@@ -130,6 +136,10 @@ function Menu:keypressed(key, game)
         handled = OnlineScreens.handleWaitingKey(self, key, game)
     elseif self.state == Menu.STATE.ROOM_CODE_INPUT then
         handled = RoomCodeInput.handleKey(self, key)
+    elseif self.state == Menu.STATE.MATCH_SETUP then
+        handled = SetupScreen.handleKey(self, key, game)
+    elseif self.state == Menu.STATE.LOBBY then
+        handled = LobbyScreen.handleKey(self, key, game)
     end
     
     -- Handle text input and backspace for online screens
@@ -170,6 +180,18 @@ function Menu:gamepadpressed(button, game)
         handled = OnlineScreens.handleWaitingGamepad(self, button, game)
     elseif self.state == Menu.STATE.ROOM_CODE_INPUT then
         handled = RoomCodeInput.handleGamepad(self, button)
+    elseif self.state == Menu.STATE.MATCH_SETUP then
+        handled = SetupScreen.handleGamepad(self, button, game)
+    elseif self.state == Menu.STATE.LOBBY then
+        handled = LobbyScreen.handleGamepad(self, button, game)
+    elseif self.state == Menu.STATE.ONLINE_HOST then
+        handled = OnlineScreens.handleHostKey(self, button == "a" and "return" or (button == "b" and "escape" or button), game)
+    elseif self.state == Menu.STATE.ONLINE_BROWSE then
+        -- map common gamepad to browse keys
+        local keyMap = { dpup = "up", dpdown = "down", a = "return", b = "escape", start = "return" }
+        if keyMap[button] then
+            handled = OnlineScreens.handleBrowseKey(self, keyMap[button], game)
+        end
     end
 
     if handled then

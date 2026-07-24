@@ -54,7 +54,7 @@ All require statements verified and correct:
 ## Final Structure
 
 ```
-/Users/alsinas/Projects/love-tetris/
+/Users/alsinas/Projects/dualdrop/
 ├── assets/
 │   └── fonts/
 │       └── upheavtt.ttf          # MOVED from src/

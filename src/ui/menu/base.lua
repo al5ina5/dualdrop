@@ -27,6 +27,9 @@ Base.STATE = {
     ONLINE_BROWSE = "online_browse",
     ONLINE_WAITING = "online_waiting",
     ROOM_CODE_INPUT = "room_code_input",
+    -- Team / party lobby
+    MATCH_SETUP = "match_setup",
+    LOBBY = "lobby",
 }
 
 function Base.create(discovery, fonts)
@@ -54,6 +57,17 @@ function Base.create(discovery, fonts)
         isPublicRoom = true,
         onlineRooms = {},
         onlineError = nil,
+        onlineServersOnline = false,
+        onlineServerCheckedAt = 0,
+        connectionError = nil,
+
+        -- Team battle lobby
+        matchFormat = "1v1",
+        localPlayerCount = 1,
+        versusRules = "classic",
+        setupMode = "host", -- host | join
+        setupReturnState = nil,
+        pendingJoinTarget = nil, -- { ip, port } or { roomCode }
         
         -- Background
         fallingBlocks = Background.init(),
@@ -73,6 +87,13 @@ function Base.create(discovery, fonts)
         onHostOnline = nil,
         onJoinOnline = nil,
         onRefreshOnlineRooms = nil,
+        onHostSetupDone = nil,
+        onLocalSetupDone = nil,
+        onJoinSetupDone = nil,
+        onLobbyReady = nil,
+        onLobbyStart = nil,
+        onLocalCountChanged = nil,
+        onPadJoinLocal = nil,
         
         -- Settings
         settings = {}
@@ -131,7 +152,11 @@ function Base.update(menu, dt)
         menu.scanTimer = menu.scanTimer + dt
         if menu.scanTimer >= 2.0 then
             menu.scanTimer = 0
-            menu.discovery:sendDiscoveryRequest()
+            local hints = {}
+            if menu.settings and menu.settings.lastIP then
+                table.insert(hints, menu.settings.lastIP)
+            end
+            menu.discovery:sendDiscoveryRequest(hints)
         end
     end
 end
@@ -141,12 +166,25 @@ function Base.drawBackground(menu, game)
     Background.draw(menu.fallingBlocks)
 end
 
+-- Normalize menu option: string or { label = "...", disabled = bool }
+function Base.optionLabel(option)
+    if type(option) == "table" then
+        return option.label or option[1] or ""
+    end
+    return option
+end
+
+function Base.optionDisabled(option)
+    return type(option) == "table" and option.disabled == true
+end
+
 -- Draw a link-style menu (centered, navigation-focused)
 -- Used for main menu, submenus, pause menu, etc.
+-- options: strings, or { label, disabled } tables for strikethrough/dim items
 function Base.drawLinkMenu(menu, sw, sh, game, title, subtitle, options)
     -- Title
     if title then
-        if title == "BLOCKDROP" then
+        if title == "DUALDROP" then
             -- Main menu title - animated falling letters
             if menu.fonts and menu.fonts.large then
                 local font = menu.fonts.large
@@ -155,7 +193,7 @@ function Base.drawLinkMenu(menu, sw, sh, game, title, subtitle, options)
                     TitleAnimation.setup(menu.titleAnimation, title, font)
                 end
                 -- Draw animated title
-                TitleAnimation.draw(menu.titleAnimation, sw/2, sh/2 - 130 + font:getHeight()/2, font, game, {0.3, 0.3, 0.3})
+                TitleAnimation.draw(menu.titleAnimation, sw/2, sh/2 - 130 + font:getHeight()/2, font, game, nil)
             end
         else
             -- Submenu titles - medium font
@@ -172,18 +210,39 @@ function Base.drawLinkMenu(menu, sw, sh, game, title, subtitle, options)
 
     -- Menu options - centered
     if menu.fonts then love.graphics.setFont(menu.fonts.medium) end
+    local font = love.graphics.getFont()
     local y = sh/2 - 20
     local spacing = 30
     
     for i, option in ipairs(options) do
-        local color = {0.8, 0.8, 0.8}
-        local text = "  " .. option
-        if i == menu.selectedIndex then
-            color = {1, 1, 0.5}
-            text = "> " .. option
+        local label = Base.optionLabel(option)
+        local disabled = Base.optionDisabled(option)
+        local selected = (i == menu.selectedIndex)
+        local color
+        local text
+        if disabled then
+            color = selected and {0.55, 0.55, 0.35, 0.4} or {0.45, 0.45, 0.45, 0.35}
+            text = (selected and "> " or "  ") .. label
+        else
+            color = selected and {1, 1, 0.5} or {0.8, 0.8, 0.8}
+            text = (selected and "> " or "  ") .. label
         end
         
-        game:drawText(text, 0, y, sw, "center", color)
+        game:drawText(text, 0, y, sw, "center", color,
+            disabled and {0, 0, 0, (color[4] or 1) * 0.35} or nil,
+            disabled and {0, 0, 0, (color[4] or 1) * 0.4} or nil)
+
+        if disabled and font then
+            local tw = font:getWidth(text)
+            local th = font:getHeight()
+            local lx = math.floor((sw - tw) / 2 + 0.5)
+            local ly = math.floor(y + th * 0.5 + 0.5)
+            love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1) * 0.9)
+            love.graphics.setLineWidth(1)
+            love.graphics.line(lx, ly, lx + tw, ly)
+            love.graphics.setColor(1, 1, 1, 1)
+        end
+
         y = y + spacing
     end
 end
@@ -192,7 +251,7 @@ end
 -- Automatically detects which style to use based on title
 function Base.drawList(menu, sw, sh, game, title, subtitle, options, startY)
     -- For navigation menus (main, submenus), use link style
-    if title == "BLOCKDROP" or subtitle or not startY then
+    if title == "DUALDROP" or subtitle or not startY then
         Base.drawLinkMenu(menu, sw, sh, game, title, subtitle, options)
     else
         -- Content-heavy style (left-aligned, for options screens)
